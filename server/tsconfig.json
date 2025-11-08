@@ -1,0 +1,22 @@
+{
+    "compilerOptions": {
+      "target": "ES2022",
+      "module": "NodeNext",
+      "moduleResolution": "NodeNext",
+      "strict": true,
+      "esModuleInterop": true,
+      "skipLibCheck": true,
+      "forceConsistentCasingInFileNames": true,
+      "outDir": "./dist",
+      "types": ["node"]
+
+     },
+    // --- SECCIÓN DE CONFIGURACIÓN DE TS-NODE AÑADIDA ---
+    "ts-node": {
+      "esm": true, // Habilita el soporte de módulos ES (import/export)
+      "experimentalSpecifierResolution": "node" // Ayuda a Node.js a resolver las extensiones en modo módulo
+    },
+    // ---------------------------------------------------
+    "include": ["**/*.ts"],
+    "exclude": ["node_modules"]
+  }
