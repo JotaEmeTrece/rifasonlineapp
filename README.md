@@ -155,3 +155,265 @@ rifasonlineapp
 └─ tsconfig.json
 
 ```
+```
+rifasonlineapp
+├─ app
+│  ├─ admin
+│  │  ├─ dashboard
+│  │  │  └─ page.tsx
+│  │  └─ login
+│  │     └─ page.tsx
+│  ├─ globals.css
+│  ├─ layout.tsx
+│  ├─ page.tsx
+│  ├─ raffle
+│  │  └─ [id]
+│  │     └─ page.tsx
+│  └─ raffles
+│     └─ page.tsx
+├─ components
+│  ├─ admin-nav.tsx
+│  ├─ admin-sidebar.tsx
+│  ├─ auth-guard.tsx
+│  ├─ footer.tsx
+│  ├─ navbar.tsx
+│  ├─ number-grid.tsx
+│  ├─ raffle-grid.tsx
+│  ├─ theme-provider.tsx
+│  └─ ui
+│     ├─ accordion.tsx
+│     ├─ alert-dialog.tsx
+│     ├─ alert.tsx
+│     ├─ aspect-ratio.tsx
+│     ├─ avatar.tsx
+│     ├─ badge.tsx
+│     ├─ breadcrumb.tsx
+│     ├─ button-group.tsx
+│     ├─ button.tsx
+│     ├─ calendar.tsx
+│     ├─ card.tsx
+│     ├─ carousel.tsx
+│     ├─ chart.tsx
+│     ├─ checkbox.tsx
+│     ├─ collapsible.tsx
+│     ├─ command.tsx
+│     ├─ context-menu.tsx
+│     ├─ dialog.tsx
+│     ├─ drawer.tsx
+│     ├─ dropdown-menu.tsx
+│     ├─ empty.tsx
+│     ├─ field.tsx
+│     ├─ form.tsx
+│     ├─ hover-card.tsx
+│     ├─ input-group.tsx
+│     ├─ input-otp.tsx
+│     ├─ input.tsx
+│     ├─ item.tsx
+│     ├─ kbd.tsx
+│     ├─ label.tsx
+│     ├─ menubar.tsx
+│     ├─ navigation-menu.tsx
+│     ├─ pagination.tsx
+│     ├─ popover.tsx
+│     ├─ progress.tsx
+│     ├─ radio-group.tsx
+│     ├─ resizable.tsx
+│     ├─ scroll-area.tsx
+│     ├─ select.tsx
+│     ├─ separator.tsx
+│     ├─ sheet.tsx
+│     ├─ sidebar.tsx
+│     ├─ skeleton.tsx
+│     ├─ slider.tsx
+│     ├─ sonner.tsx
+│     ├─ spinner.tsx
+│     ├─ switch.tsx
+│     ├─ table.tsx
+│     ├─ tabs.tsx
+│     ├─ textarea.tsx
+│     ├─ toast.tsx
+│     ├─ toaster.tsx
+│     ├─ toggle-group.tsx
+│     ├─ toggle.tsx
+│     ├─ tooltip.tsx
+│     ├─ use-mobile.tsx
+│     └─ use-toast.ts
+├─ components.json
+├─ context
+│  └─ auth-context.tsx
+├─ flow to github via PS
+├─ hooks
+│  ├─ use-mobile.ts
+│  └─ use-toast.ts
+├─ lib
+│  ├─ api-client.ts
+│  ├─ api-helpers.ts
+│  └─ utils.ts
+├─ next.config.mjs
+├─ package.json
+├─ pnpm-lock.yaml
+├─ postcss.config.mjs
+├─ public
+│  ├─ apple-icon.png
+│  ├─ cancun-beach-resort.png
+│  ├─ gold-jewelry-luxury.jpg
+│  ├─ icon-dark-32x32.png
+│  ├─ icon-light-32x32.png
+│  ├─ icon.svg
+│  ├─ iphone-15-pro-luxury.jpg
+│  ├─ placeholder-logo.png
+│  ├─ placeholder-logo.svg
+│  ├─ placeholder-user.jpg
+│  ├─ placeholder.jpg
+│  ├─ placeholder.svg
+│  ├─ premium-laptop-computer.jpg
+│  ├─ sports-car-luxury.jpg
+│  └─ swiss-watch-diamond-luxury.jpg
+├─ README.md
+├─ server
+│  ├─ admin.route.ts
+│  ├─ index.ts
+│  ├─ middleware
+│  │  └─ authadmin.ts
+│  ├─ package.json
+│  ├─ pnpm-lock.yaml
+│  ├─ rifas.route.ts
+│  ├─ supabaseClient.ts
+│  └─ tsconfig.json
+├─ styles
+│  └─ globals.css
+└─ tsconfig.json
+
+```
+```
+rifasonlineapp
+├─ app
+│  ├─ admin
+│  │  ├─ dashboard
+│  │  │  └─ page.tsx
+│  │  └─ login
+│  │     └─ page.tsx
+│  ├─ globals.css
+│  ├─ layout.tsx
+│  ├─ page.tsx
+│  ├─ raffle
+│  │  └─ [id]
+│  │     └─ page.tsx
+│  └─ raffles
+│     └─ page.tsx
+├─ components
+│  ├─ admin-nav.tsx
+│  ├─ admin-sidebar.tsx
+│  ├─ auth-guard.tsx
+│  ├─ footer.tsx
+│  ├─ navbar.tsx
+│  ├─ number-grid.tsx
+│  ├─ raffle-grid.tsx
+│  ├─ theme-provider.tsx
+│  └─ ui
+│     ├─ accordion.tsx
+│     ├─ alert-dialog.tsx
+│     ├─ alert.tsx
+│     ├─ aspect-ratio.tsx
+│     ├─ avatar.tsx
+│     ├─ badge.tsx
+│     ├─ breadcrumb.tsx
+│     ├─ button-group.tsx
+│     ├─ button.tsx
+│     ├─ calendar.tsx
+│     ├─ card.tsx
+│     ├─ carousel.tsx
+│     ├─ chart.tsx
+│     ├─ checkbox.tsx
+│     ├─ collapsible.tsx
+│     ├─ command.tsx
+│     ├─ context-menu.tsx
+│     ├─ dialog.tsx
+│     ├─ drawer.tsx
+│     ├─ dropdown-menu.tsx
+│     ├─ empty.tsx
+│     ├─ field.tsx
+│     ├─ form.tsx
+│     ├─ hover-card.tsx
+│     ├─ input-group.tsx
+│     ├─ input-otp.tsx
+│     ├─ input.tsx
+│     ├─ item.tsx
+│     ├─ kbd.tsx
+│     ├─ label.tsx
+│     ├─ menubar.tsx
+│     ├─ navigation-menu.tsx
+│     ├─ pagination.tsx
+│     ├─ popover.tsx
+│     ├─ progress.tsx
+│     ├─ radio-group.tsx
+│     ├─ resizable.tsx
+│     ├─ scroll-area.tsx
+│     ├─ select.tsx
+│     ├─ separator.tsx
+│     ├─ sheet.tsx
+│     ├─ sidebar.tsx
+│     ├─ skeleton.tsx
+│     ├─ slider.tsx
+│     ├─ sonner.tsx
+│     ├─ spinner.tsx
+│     ├─ switch.tsx
+│     ├─ table.tsx
+│     ├─ tabs.tsx
+│     ├─ textarea.tsx
+│     ├─ toast.tsx
+│     ├─ toaster.tsx
+│     ├─ toggle-group.tsx
+│     ├─ toggle.tsx
+│     ├─ tooltip.tsx
+│     ├─ use-mobile.tsx
+│     └─ use-toast.ts
+├─ components.json
+├─ context
+│  └─ auth-context.tsx
+├─ flow to github via PS
+├─ hooks
+│  ├─ use-mobile.ts
+│  └─ use-toast.ts
+├─ lib
+│  ├─ api-client.ts
+│  ├─ api-helpers.ts
+│  └─ utils.ts
+├─ next.config.mjs
+├─ package.json
+├─ pnpm-lock.yaml
+├─ postcss.config.mjs
+├─ public
+│  ├─ apple-icon.png
+│  ├─ cancun-beach-resort.png
+│  ├─ gold-jewelry-luxury.jpg
+│  ├─ icon-dark-32x32.png
+│  ├─ icon-light-32x32.png
+│  ├─ icon.svg
+│  ├─ iphone-15-pro-luxury.jpg
+│  ├─ placeholder-logo.png
+│  ├─ placeholder-logo.svg
+│  ├─ placeholder-user.jpg
+│  ├─ placeholder.jpg
+│  ├─ placeholder.svg
+│  ├─ premium-laptop-computer.jpg
+│  ├─ sports-car-luxury.jpg
+│  └─ swiss-watch-diamond-luxury.jpg
+├─ README.md
+├─ server
+│  ├─ admin.route.ts
+│  ├─ index.ts
+│  ├─ middleware
+│  │  └─ authadmin.ts
+│  ├─ package.json
+│  ├─ pnpm-lock.yaml
+│  ├─ rifas.route.ts
+│  ├─ scripts
+│  │  └─ create-admin.js
+│  ├─ supabaseClient.ts
+│  └─ tsconfig.json
+├─ styles
+│  └─ globals.css
+└─ tsconfig.json
+
+```

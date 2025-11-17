@@ -1,468 +1,356 @@
-// FILE: server/rifas.route.ts (VERSIÓN FINAL: Compra Inmediata + Auditoría + Tamaños Dinámicos)
+// FILE: server/rifas.route.ts (VERSIÓN EXTENDIDA CON LOGIN ADMIN + JWT)
 
 import express, { Request, Response, Router } from 'express';
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
 import { supabaseAdmin } from './supabaseClient.js';
 
 const rifasRouter: Router = express.Router();
 
-// --- FUNCIONES UTILITARIAS ---
+// -----------------------------
+// CONFIG JWT
+// -----------------------------
+const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_key';
+const JWT_EXPIRES_IN = '7d';
 
+// -----------------------------
+// UTILIDAD: Enviar WhatsApp
+// -----------------------------
 const sendWhatsAppNotification = async (to: string, templateId: string, data: any) => {
-    // ESTE ES UN PLACEHOLDER. Aquí iría la integración real con la API de WhatsApp
-    console.log(`[WS_NOTIFICATION] Enviando mensaje '${templateId}' a ${to} con datos:`, data);
+    console.log(`[WS_NOTIFICATION] Enviando mensaje '${templateId}' a ${to} con datos:`, data);
 };
 
-
-// --- INTERFACES --- 
-
-// Estructura definida para los datos de pago del administrador
+// -----------------------------
+// INTERFACES
+// -----------------------------
 interface DatosPagoAdmin {
-    titular_nombre: string;
-    banco: string;
-    numero_telefono: string;
-    cedula_id: string;
+    titular_nombre: string;
+    banco: string;
+    numero_telefono: string;
+    cedula_id: string;
 }
 
 interface RifasBody {
-    nombre: string;
-    precio_numero: number;
-    fecha_sorteo: string;
-    datos_pago_admin: DatosPagoAdmin;
-    rango_maximo: number; // <-- ¡NUEVO!: Define el número más alto (ej: 99 para rifa de 100)
+    nombre: string;
+    precio_numero: number;
+    fecha_sorteo: string;
+    datos_pago_admin: DatosPagoAdmin;
+    rango_maximo: number;
 }
 
-// Interfaz para el nuevo flujo de "Compra Inmediata/Reserva Provisional"
 interface ReservaBody {
-    rifa_id: string;
-    numero: string;
-    user_whatsapp: string;
-    full_name: string;
-    payment_ref: string; // Referencia REAL de la transacción ingresada por el cliente
-    banco_cliente: string; // Banco que usó el cliente para pagar
+    rifa_id: string;
+    numero: string;
+    user_whatsapp: string;
+    full_name: string;
+    payment_ref: string;
+    banco_cliente: string;
 }
 
-// Interfaz de Confirmación (El Admin solo necesita confirmar el número)
 interface ConfirmPaymentBody {
-    rifa_id: string;
-    numero: string;
+    rifa_id: string;
+    numero: string;
 }
 
-// -------------------------------------------------------------------
-// --- NUEVA RUTA: OBTENER DETALLES DE RIFA POR ID (/rifaId) ---
-// -------------------------------------------------------------------
+// ======================================================
+// =============== LOGIN ADMIN + JWT =====================
+// ======================================================
+
 /**
- * RUTA: GET /api/rifas/:rifaId
- * Propósito: Obtiene los detalles de configuración de una rifa específica para el frontend público.
+ * POST /admin/login
+ * BODY: { email, password }
+ * Devuelve: { token }
  */
+rifasRouter.post('/admin/login', async (req: Request, res: Response) => {
+    try {
+        const { email, password } = req.body;
+
+        if (!email || !password) {
+            return res.status(400).json({ success: false, message: 'Email y password requeridos.' });
+        }
+
+        // Buscar admin en Supabase
+        const { data: admin, error } = await supabaseAdmin
+            .from('admins')
+            .select('*')
+            .eq('email', email)
+            .single();
+
+        if (error || !admin) {
+            return res.status(401).json({ success: false, message: 'Credenciales inválidas.' });
+        }
+
+        // Comparar password
+        const isMatch = await bcrypt.compare(password, admin.password_hash);
+        if (!isMatch) {
+            return res.status(401).json({ success: false, message: 'Password incorrecto.' });
+        }
+
+        // Generar JWT
+        const token = jwt.sign({ admin_id: admin.id, email: admin.email }, JWT_SECRET, {
+            expiresIn: JWT_EXPIRES_IN,
+        });
+
+        return res.status(200).json({ success: true, token });
+    } catch (err) {
+        console.error('Error en /admin/login:', err);
+        return res.status(500).json({ success: false, message: 'Error interno del servidor.' });
+    }
+});
+
+// Middleware para validar token
+const requireAdmin = (req: Request, res: Response, next: Function) => {
+    try {
+        const token = req.headers.authorization?.split(' ')[1];
+        if (!token) {
+            return res.status(401).json({ success: false, message: 'Token no proporcionado.' });
+        }
+
+        const decoded = jwt.verify(token, JWT_SECRET) as any;
+        (req as any).admin = decoded;
+        next();
+    } catch (err) {
+        return res.status(401).json({ success: false, message: 'Token inválido o expirado.' });
+    }
+};
+
+// ======================================================
+// =============== RUTAS DEL SISTEMA =====================
+// ======================================================
+
+/** GET /api/rifas/:rifaId */
 rifasRouter.get('/:rifaId', async (req: Request, res: Response) => {
     try {
         const { rifaId } = req.params;
-
-        // Validación básica de formato UUID
         const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
         if (!rifaId || !uuidRegex.test(rifaId)) {
-            return res.status(400).json({ success: false, message: "ID de rifa inválido." });
+            return res.status(400).json({ success: false, message: 'ID inválido.' });
         }
 
-        // 1. Consulta a Supabase para obtener los detalles de la rifa
         const { data: rifa, error } = await supabaseAdmin
             .from('rifas')
-            // Seleccionamos solo los campos necesarios para la vista pública (numbers)
             .select('id, nombre, precio_numero, rango_maximo, datos_pago_admin')
             .eq('id', rifaId)
             .single();
 
         if (error || !rifa) {
-            console.error('Error al obtener rifa:', error);
-            // Si la rifa no se encuentra, devolvemos 404
-            return res.status(404).json({ success: false, message: "Rifa no encontrada o error de base de datos." });
+            return res.status(404).json({ success: false, message: 'Rifa no encontrada.' });
         }
-        
-        // 2. Formatear datos (asegurar que precio_numero es un número)
-        // Aunque Supabase maneja bien los tipos, siempre es buena práctica.
-        const formattedRifa = {
-            ...rifa,
-            precio_numero: parseFloat(rifa.precio_numero),
-        };
 
-        res.status(200).json({ success: true, data: formattedRifa });
-
-    } catch (error) {
-        console.error("Error fatal al obtener detalles de la rifa:", error);
-        res.status(500).json({ success: false, message: "Error interno del servidor." });
+        return res.status(200).json({ success: true, data: { ...rifa, precio_numero: parseFloat(rifa.precio_numero) } });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: 'Error interno.' });
     }
 });
 
+// ======================================================
+// =============== CREACIÓN DE RIFA ======================
+// ======================================================
 
-// -------------------------------------------------------------------
-// --- ENDPOINT: CREACIÓN DE RIFA (/create) ---
-// -------------------------------------------------------------------
+rifasRouter.post('/create', requireAdmin, async (req: Request<{}, {}, RifasBody>, res: Response) => {
+    try {
+        const { nombre, precio_numero, fecha_sorteo, datos_pago_admin, rango_maximo } = req.body;
 
-rifasRouter.post('/create', async (req: Request<{}, {}, RifasBody>, res: Response) => {
-    try {
-        const { nombre, precio_numero, fecha_sorteo, datos_pago_admin, rango_maximo } = req.body;
-        
-        // Validación básica del rango
-        if (rango_maximo <= 0 || !Number.isInteger(rango_maximo)) {
-            return res.status(400).json({ error: 'El rango máximo debe ser un número entero positivo.' });
-        }
+        if (rango_maximo <= 0 || !Number.isInteger(rango_maximo)) {
+            return res.status(400).json({ error: 'El rango máximo debe ser un entero positivo.' });
+        }
 
-        // 1. Crear la entrada de la rifa principal
-        const { data: rifa, error: rifaError } = await supabaseAdmin
-            .from('rifas')
-            .insert({ nombre, precio_numero, fecha_sorteo, datos_pago_admin, rango_maximo }) // Guardamos el rango
-            .select().single();
+        const { data: rifa, error: rifaError } = await supabaseAdmin
+            .from('rifas')
+            .insert({ nombre, precio_numero, fecha_sorteo, datos_pago_admin, rango_maximo })
+            .select()
+            .single();
 
-        if (rifaError) {
-            console.error('Error al crear rifa:', rifaError);
-            return res.status(500).json({ error: 'Error al crear la rifa principal.' });
-        }
+        if (rifaError) {
+            return res.status(500).json({ error: 'Error al crear la rifa principal.' });
+        }
 
-        const rifaId = rifa.id;
-        
-        // 2. Lógica Dinámica de Generación de Números
-        const totalNumeros = rango_maximo + 1; // Incluyendo el 0
-        const padding = String(rango_maximo).length; // Determina el relleno (ej: 99 -> 2; 999 -> 3)
-        const numerosToInsert = [];
-        
-        for (let i = 0; i <= rango_maximo; i++) {
-            // Se usa el padding calculado dinámicamente
-            numerosToInsert.push({ 
-                rifa_id: rifaId, 
-                numero: String(i).padStart(padding, '0'), 
-                status: 'available' 
-            });
-        }
+        const rifaId = rifa.id;
+        const padding = String(rango_maximo).length;
+        const numerosToInsert = [];
 
-        // 3. Insertar los números
-        const { error: numerosError } = await supabaseAdmin.from('numeros').insert(numerosToInsert);
+        for (let i = 0; i <= rango_maximo; i++) {
+            numerosToInsert.push({
+                rifa_id: rifaId,
+                numero: String(i).padStart(padding, '0'),
+                status: 'available'
+            });
+        }
 
-        if (numerosError) {
-            // Rollback: Si falla la inserción de números, elimina la rifa creada
-            await supabaseAdmin.from('rifas').delete().eq('id', rifaId);
-            return res.status(500).json({ error: `Error al generar los ${totalNumeros} números para la rifa.` });
-        }
+        const { error: numerosError } = await supabaseAdmin.from('numeros').insert(numerosToInsert);
 
-        res.status(201).json({ 
-            message: `Rifa creada exitosamente con ${totalNumeros} números disponibles (0 al ${rango_maximo}).`, 
-            rifaId 
-        });
-    } catch (error) {
-        console.error('Error en el endpoint /create:', error);
-        res.status(500).json({ error: 'Error interno del servidor.' });
-    }
+        if (numerosError) {
+            await supabaseAdmin.from('rifas').delete().eq('id', rifaId);
+            return res.status(500).json({ error: 'Error al generar números.' });
+        }
+
+        return res.status(201).json({ message: 'Rifa creada correctamente.', rifaId });
+    } catch (err) {
+        return res.status(500).json({ error: 'Error interno.' });
+    }
 });
 
-
-// -------------------------------------------------------------------
-// --- ENDPOINT: RESERVA DE NÚMERO (/reserve) - COMPRA PROVISIONAL ---
-// -------------------------------------------------------------------
+// ======================================================
+// =============== RESERVA DE NÚMERO =====================
+// ======================================================
 
 rifasRouter.post('/reserve', async (req: Request<{}, {}, ReservaBody>, res: Response) => {
-    const supabaseClient = supabaseAdmin; 
-    try {
-        const { rifa_id, numero, user_whatsapp, full_name, payment_ref, banco_cliente } = req.body; 
-        const RESERVATION_TIME_MINUTES = 180; // 3 horas
+    try {
+        const supabaseClient = supabaseAdmin;
+        const { rifa_id, numero, user_whatsapp, full_name, payment_ref, banco_cliente } = req.body;
 
-        // 1. UPSERT de Usuario
-        const { error: userError } = await supabaseClient
-            .from('usuarios')
-            .upsert({ whatsapp_number: user_whatsapp, full_name: full_name })
-            .select();
-        if (userError) { console.error('Error al registrar usuario:', userError); }
+        const { data: numeroActual } = await supabaseClient
+            .from('numeros')
+            .select('status, expires_at')
+            .eq('rifa_id', rifa_id)
+            .eq('numero', numero)
+            .single();
 
-        
-        // ------------------------------------------------------------------
-        // --- REGLAS DE CORTE y CONCURRENCIA ---
-        // ------------------------------------------------------------------
-        
-        // Obtener datos de rifa (fecha de sorteo Y datos de pago del admin)
-        const { data: rifaData, error: rifaError } = await supabaseClient
-            .from('rifas')
-            .select('fecha_sorteo, datos_pago_admin') 
-            .eq('id', rifa_id)
-            .single();
-        
-        if (rifaError || !rifaData) {
-            return res.status(404).json({ success: false, message: 'La rifa especificada no existe.' });
-        }
-        
-        // --- Validación de tiempo de sorteo (omito por brevedad) ---
-        // ...
-        
-        // Verificación de estado de concurrencia
-        const { data: numeroActual, error: checkError } = await supabaseClient
-            .from('numeros')
-            .select('status, expires_at')
-            .eq('rifa_id', rifa_id)
-            .eq('numero', numero)
-            .single();
-            
-        if (checkError || !numeroActual) {
-            return res.status(404).json({ success: false, message: 'El número de rifa no existe.' });
-        }
-        
-        const isExpired = numeroActual.status === 'reserved' && new Date(numeroActual.expires_at).getTime() < Date.now();
-        
-        if ((numeroActual.status === 'reserved' && !isExpired) || numeroActual.status === 'paid') {
-            return res.status(409).json({ 
-                success: false, 
-                message: '¡Lo sentimos! Este número ya está reservado o fue comprado. Intenta con otro.' 
-            });
-        }
-        
-        // ------------------------------------------------------------------
-        
-        
-        // 2. Cálculo de Expiración
-        const currentTime = Date.now();
-        const expiresAtISO = new Date(currentTime + RESERVATION_TIME_MINUTES * 60000).toISOString();
-        
-        
-        // 3. Reserva Atómica (UPDATE)
-        const { data, error } = await supabaseClient
-            .from('numeros')
-            .update({
-                status: 'reserved',
-                user_whatsapp: user_whatsapp,
-                full_name: full_name, 
-                reserved_at: new Date().toISOString(),
-                expires_at: expiresAtISO, 
-                payment_ref: payment_ref, 
-                banco_cliente: banco_cliente, 
-            })
-            .eq('rifa_id', rifa_id)
-            .eq('numero', numero)
-            .select(); 
+        if (!numeroActual) {
+            return res.status(404).json({ success: false, message: 'Número inexistente.' });
+        }
 
-        
-        // 4. Validación Final
-        if (error || !data || data.length === 0) {
-            console.error('Error al intentar reservar/auditar:', error);
-            return res.status(500).json({ success: false, message: 'Error interno o de base de datos durante la reserva.' });
-        }
-        
-        // 5. Notificación WS al Cliente: Reserva Provisional (Ticket de texto)
-        await sendWhatsAppNotification(
-            user_whatsapp, 
-            'reserva_provisional', 
-            { numero: numero, nombre: full_name, expires_at: expiresAtISO }
-        );
+        const isExpired = numeroActual.status === 'reserved' && new Date(numeroActual.expires_at).getTime() < Date.now();
 
-        // 6. Respuesta Exitosa: Se devuelve la información de pago del Admin
-        const expirationTime = new Date(data[0].expires_at).getTime(); 
+        if ((numeroActual.status === 'reserved' && !isExpired) || numeroActual.status === 'paid') {
+            return res.status(409).json({ success: false, message: 'Número ya ocupado.' });
+        }
 
-        return res.status(200).json({
-            success: true,
-            message: `Número reservado provisionalmente. Esperando confirmación de pago por el administrador. Tienes ${RESERVATION_TIME_MINUTES / 60} horas para el cotejo.`,
-            data: {
-                rifa_id: rifa_id,
-                numero: numero,
-                expires_at: expirationTime,
-                reserved_at: data[0].reserved_at,
-                // DATOS DEL ADMIN PARA MOSTRAR EN EL FRONTEND/MODAL FINAL
-                datos_pago_admin: rifaData.datos_pago_admin 
-            }
-        });
+        const expiresAtISO = new Date(Date.now() + 180 * 60000).toISOString();
 
-    } catch (error) {
-        console.error('Error fatal en /reserve:', error);
-        res.status(500).json({ success: false, error: 'Error interno del servidor.' });
-    }
+        const { data, error } = await supabaseClient
+            .from('numeros')
+            .update({
+                status: 'reserved',
+                user_whatsapp,
+                full_name,
+                reserved_at: new Date().toISOString(),
+                expires_at: expiresAtISO,
+                payment_ref,
+                banco_cliente,
+            })
+            .eq('rifa_id', rifa_id)
+            .eq('numero', numero)
+            .select();
+
+        if (error) {
+            return res.status(500).json({ success: false, message: 'Error al reservar.' });
+        }
+
+        await sendWhatsAppNotification(user_whatsapp, 'reserva_provisional', {
+            numero,
+            nombre: full_name,
+            expires_at: expiresAtISO,
+        });
+
+        return res.status(200).json({ success: true, message: 'Reservado correctamente.', data: data[0] });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: 'Error interno.' });
+    }
 });
 
-// -------------------------------------------------------------------
-// --- ENDPOINT: LISTAR NÚMEROS DISPONIBLES (/available) (SIN CAMBIOS) ---
-// -------------------------------------------------------------------
+// ======================================================
+// =============== CONFIRMAR PAGO ========================
+// ======================================================
+
+rifasRouter.post('/confirm-payment', requireAdmin, async (req: Request<{}, {}, ConfirmPaymentBody>, res: Response) => {
+    try {
+        const supabaseClient = supabaseAdmin;
+        const { rifa_id, numero } = req.body;
+
+        const { data: numeroActual } = await supabaseClient
+            .from('numeros')
+            .select('status, user_whatsapp, full_name, payment_ref')
+            .eq('rifa_id', rifa_id)
+            .eq('numero', numero)
+            .single();
+
+        if (!numeroActual) {
+            return res.status(404).json({ success: false, message: 'Número no existe.' });
+        }
+
+        if (numeroActual.status !== 'reserved') {
+            return res.status(409).json({ success: false, message: 'No se puede confirmar.' });
+        }
+
+        const { data: updateData, error } = await supabaseClient
+            .from('numeros')
+            .update({
+                status: 'paid',
+                expires_at: null,
+                paid_at: new Date().toISOString(),
+                is_paid_confirmed: true,
+            })
+            .eq('rifa_id', rifa_id)
+            .eq('numero', numero)
+            .eq('status', 'reserved')
+            .select();
+
+        if (error || !updateData) {
+            return res.status(409).json({ success: false, message: 'No se pudo confirmar.' });
+        }
+
+        await sendWhatsAppNotification(numeroActual.user_whatsapp, 'ticket_confirmado', {
+            numero,
+            nombre: numeroActual.full_name,
+            ref_pago: numeroActual.payment_ref,
+        });
+
+        return res.status(200).json({ success: true, message: 'Pago confirmado.', data: updateData[0] });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: 'Error interno.' });
+    }
+});
+
+// ======================================================
+// =============== LISTAR ESTADOS ========================
+// ======================================================
 
 rifasRouter.get('/available/:rifaId', async (req: Request, res: Response) => {
-    try {
-        const { rifaId } = req.params;
+    try {
+        const { rifaId } = req.params;
+        const { data } = await supabaseAdmin
+            .from('numeros')
+            .select('numero')
+            .eq('rifa_id', rifaId)
+            .eq('status', 'available')
+            .order('numero');
 
-        const { data: numeros, error } = await supabaseAdmin
-            .from('numeros')
-            .select('numero, status')
-            .eq('rifa_id', rifaId)
-            .eq('status', 'available')
-            .order('numero', { ascending: true }); 
-
-        if (error) {
-            console.error('Error al obtener números disponibles:', error);
-            return res.status(500).json({ success: false, message: 'Error al consultar la base de datos.' });
-        }
-
-        if (!numeros || numeros.length === 0) {
-            return res.status(404).json({ success: false, message: 'No hay números disponibles para esta rifa o la rifa no existe.' });
-        }
-        
-        const availableNumbers = numeros.map(n => n.numero);
-
-        return res.status(200).json({
-            success: true,
-            message: `Se encontraron ${availableNumbers.length} números disponibles.`,
-            data: availableNumbers
-        });
-
-    } catch (error) {
-        console.error('Error fatal en /available:', error);
-        res.status(500).json({ success: false, error: 'Error interno del servidor.' });
-    }
+        return res.status(200).json({ success: true, data });
+    } catch (err) {
+        return res.status(500).json({ success: false });
+    }
 });
 
-// -------------------------------------------------------------------
-// --- ENDPOINT: CONFIRMAR PAGO (/confirm-payment) ---
-// -------------------------------------------------------------------
-
-rifasRouter.post('/confirm-payment', async (req: Request<{}, {}, ConfirmPaymentBody>, res: Response) => {
-    const supabaseClient = supabaseAdmin;
-    try {
-        const { rifa_id, numero } = req.body;
-
-        // 1. Obtener datos del número reservado para la notificación
-        const { data: numeroActual, error: checkError } = await supabaseClient
-            .from('numeros')
-            .select('status, user_whatsapp, full_name, payment_ref') 
-            .eq('rifa_id', rifa_id)
-            .eq('numero', numero)
-            .single();
-
-        if (checkError || !numeroActual) {
-            return res.status(404).json({ success: false, message: 'El número de rifa no existe en esta rifa.' });
-        }
-        
-        // 2. Bloquear si ya está pagado o disponible
-        if (numeroActual.status !== 'reserved') {
-            const message = numeroActual.status === 'paid' 
-                ? 'Error: Este número ya se encuentra pagado.'
-                : 'El número no estaba reservado. Imposible confirmar el pago.';
-
-            return res.status(409).json({ success: false, message: message });
-        }
-        
-        // 3. Confirmar el Pago (UPDATE Atómico y SEGURO)
-        const { data: updateData, error: updateError } = await supabaseClient
-            .from('numeros')
-            .update({
-                status: 'paid',
-                expires_at: null, 
-                paid_at: new Date().toISOString(), 
-                is_paid_confirmed: true, 
-            })
-            .eq('rifa_id', rifa_id)
-            .eq('numero', numero)
-            .eq('status', 'reserved') 
-            .select(); 
-
-        if (updateError || !updateData || updateData.length === 0) {
-            console.error('Error de Supabase en /confirm-payment:', updateError); 
-            
-            return res.status(409).json({ 
-                success: false, 
-                message: 'El número no estaba reservado o su reserva ha expirado. Imposible confirmar el pago.' 
-            });
-        }
-        
-        // 4. Notificación WS al Cliente: Ticket de Pago Confirmado (Ticket con imagen)
-        await sendWhatsAppNotification(
-            numeroActual.user_whatsapp, 
-            'ticket_confirmado', 
-            { 
-                numero: numero, 
-                nombre: numeroActual.full_name, 
-                ref_pago: numeroActual.payment_ref 
-            }
-        );
-        
-        // 5. Éxito
-        return res.status(200).json({
-            success: true,
-            message: `Pago confirmado. El número ${numero} ha sido marcado como 'paid'.`,
-            data: updateData[0]
-        });
-
-    } catch (error) {
-        console.error('Error fatal en /confirm-payment:', error);
-        res.status(500).json({ success: false, error: 'Error interno del servidor.' });
-    }
-});
-
-// -------------------------------------------------------------------
-// --- ENDPOINT: LISTAR NÚMEROS PAGADOS (/paid/:rifaId) (SIN CAMBIOS) ---
-// -------------------------------------------------------------------
 rifasRouter.get('/paid/:rifaId', async (req: Request, res: Response) => {
-    try {
-        const { rifaId } = req.params;
+    try {
+        const { rifaId } = req.params;
+        const { data } = await supabaseAdmin
+            .from('numeros')
+            .select('*')
+            .eq('rifa_id', rifaId)
+            .eq('status', 'paid');
 
-        const { data: paidNumbers, error } = await supabaseAdmin
-            .from('numeros')
-            .select('numero, user_whatsapp, full_name, reserved_at, paid_at, is_paid_confirmed, payment_ref, banco_cliente') 
-            .eq('rifa_id', rifaId)
-            .eq('status', 'paid') 
-            .order('numero', { ascending: true }); 
-
-        if (error) {
-            console.error('Error al obtener números pagados:', error);
-            return res.status(500).json({ success: false, message: 'Error al consultar la base de datos.' });
-        }
-
-        if (!paidNumbers || paidNumbers.length === 0) {
-            return res.status(200).json({ 
-                success: true, 
-                message: 'No se encontraron números pagados para esta rifa.', 
-                data: [] 
-            });
-        }
-        
-        return res.status(200).json({
-            success: true,
-            message: `Se encontraron ${paidNumbers.length} números pagados.`,
-            data: paidNumbers 
-        });
-
-    } catch (error) {
-        console.error('Error fatal en /paid:', error);
-        res.status(500).json({ success: false, error: 'Error interno del servidor.' });
-    }
+        return res.status(200).json({ success: true, data });
+    } catch (err) {
+        return res.status(500).json({ success: false });
+    }
 });
 
-// -------------------------------------------------------------------
-// --- ENDPOINT: LISTAR NÚMEROS RESERVADOS (/reserved/:rifaId) (SIN CAMBIOS) ---
-// -------------------------------------------------------------------
 rifasRouter.get('/reserved/:rifaId', async (req: Request, res: Response) => {
-    try {
-        const { rifaId } = req.params;
+    try {
+        const { rifaId } = req.params;
+        const { data } = await supabaseAdmin
+            .from('numeros')
+            .select('*')
+            .eq('rifa_id', rifaId)
+            .eq('status', 'reserved');
 
-        const { data: reservedNumbers, error } = await supabaseAdmin
-            .from('numeros')
-            .select('numero, user_whatsapp, full_name, reserved_at, expires_at, is_paid_confirmed, payment_ref, banco_cliente')
-            .eq('rifa_id', rifaId)
-            .eq('status', 'reserved') 
-            .order('reserved_at', { ascending: true }); 
-
-        if (error) {
-            console.error('Error al obtener números reservados:', error);
-            return res.status(500).json({ success: false, message: 'Error al consultar la base de datos.' });
-        }
-
-        if (!reservedNumbers || reservedNumbers.length === 0) {
-            return res.status(200).json({ 
-                success: true, 
-                message: 'No se encontraron números reservados para esta rifa.', 
-                data: [] 
-            });
-        }
-        
-        return res.status(200).json({
-            success: true,
-            message: `Se encontraron ${reservedNumbers.length} números reservados.` ,
-            data: reservedNumbers 
-        });
-
-    } catch (error) {
-        console.error('Error fatal en /reserved:', error);
-        res.status(500).json({ success: false, error: 'Error interno del servidor.' });
-    }
+        return res.status(200).json({ success: true, data });
+    } catch (err) {
+        return res.status(500).json({ success: false });
+    }
 });
-
 
 export default rifasRouter;

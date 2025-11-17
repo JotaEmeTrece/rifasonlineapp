@@ -12,7 +12,10 @@ export const raffleApi = {
 
 // Auth endpoints
 export const authApi = {
-  login: (email: string, password: string) => apiClient.post("/auth/login", { email, password }),
+  // 🔥 CORREGIDO: la ruta correcta es /admins/login
+  login: (email: string, password: string) =>
+    apiClient.post("/admins/login", { email, password }),
+
   logout: () => {
     localStorage.removeItem("adminToken")
   },

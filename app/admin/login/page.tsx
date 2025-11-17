@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { useAuth } from "@/context/auth-context"
@@ -18,10 +18,12 @@ export default function AdminLogin() {
   const { login, isAuthenticated } = useAuth()
   const router = useRouter()
 
-  if (isAuthenticated) {
-    router.push("/admin/dashboard")
-    return null
-  }
+  // ✔ Redirección correcta SIN romper el render
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.push("/admin/dashboard")
+    }
+  }, [isAuthenticated, router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -30,7 +32,7 @@ export default function AdminLogin() {
 
     try {
       await login(email, password)
-      router.push("/admin/dashboard")
+      // El useEffect hará la redirección automáticamente
     } catch (err: any) {
       setError(err.response?.data?.message || "Error al iniciar sesión")
     } finally {
