@@ -4,77 +4,34 @@ import { useState, useEffect } from "react"
 import Navbar from "@/components/navbar"
 import Footer from "@/components/footer"
 import RaffleGrid from "@/components/raffle-grid"
+import { raffleApi } from "@/lib/api-helpers"
 
 export default function RafflesPage() {
   const [raffles, setRaffles] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    setTimeout(() => {
-      setRaffles([
-        {
-          id: 1,
-          title: "Viaje a Cancún",
-          description: "Viaje todo incluido para 2 personas a Cancún",
-          image: "/cancun-beach-resort.png",
-          price: 50,
-          numbers_total: 1000,
-          numbers_sold: 342,
-          prize_value: 15000,
-        },
-        {
-          id: 2,
-          title: "Auto Deportivo",
-          description: "Último modelo de auto deportivo",
-          image: "/sports-car-luxury.jpg",
-          price: 100,
-          numbers_total: 500,
-          numbers_sold: 201,
-          prize_value: 50000,
-        },
-        {
-          id: 3,
-          title: "Joyería de Oro",
-          description: "Collar y aretes de oro 18 quilates",
-          image: "/gold-jewelry-luxury.jpg",
-          price: 30,
-          numbers_total: 2000,
-          numbers_sold: 1500,
-          prize_value: 5000,
-        },
-        {
-          id: 4,
-          title: "Laptop Premium",
-          description: "Computadora portátil última generación",
-          image: "/premium-laptop-computer.jpg",
-          price: 75,
-          numbers_total: 800,
-          numbers_sold: 450,
-          prize_value: 8000,
-        },
-        {
-          id: 5,
-          title: "iPhone 15 Pro",
-          description: "Último modelo de iPhone con tecnología 5G",
-          image: "/iphone-15-pro-luxury.jpg",
-          price: 60,
-          numbers_total: 600,
-          numbers_sold: 289,
-          prize_value: 12000,
-        },
-        {
-          id: 6,
-          title: "Reloj Suizo",
-          description: "Reloj de lujo suizo con diamantes",
-          image: "/swiss-watch-diamond-luxury.jpg",
-          price: 80,
-          numbers_total: 400,
-          numbers_sold: 178,
-          prize_value: 18000,
-        },
-      ])
-      setLoading(false)
-    }, 500)
+    const fetchRaffles = async () => {
+      try {
+        const { data } = await raffleApi.getRaffles()
+        const mapped = (data?.data || []).map((r: any) => ({
+          id: r.id,
+          title: r.nombre,
+          description: r.fecha_sorteo ? `Sorteo: ${r.fecha_sorteo}` : "Rifa disponible",
+          image: r.image_url || "/placeholder.svg",
+          price: Number(r.precio_numero) || 0,
+          numbers_total: Number(r.rango_maximo) || 0,
+          numbers_sold: 0,
+          prize_value: 0,
+        }))
+        setRaffles(mapped)
+      } catch (err) {
+        setRaffles([])
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchRaffles()
   }, [])
 
   return (

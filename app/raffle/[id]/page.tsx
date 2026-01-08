@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -8,32 +8,58 @@ import { Card } from "@/components/ui/card"
 import Navbar from "@/components/navbar"
 import Footer from "@/components/footer"
 import NumberGrid from "@/components/number-grid"
+import { raffleApi } from "@/lib/api-helpers"
 
 export default function RafflePage() {
   const params = useParams()
   const [raffle, setRaffle] = useState<any>(null)
   const [selectedNumbers, setSelectedNumbers] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
 
   useEffect(() => {
-    setTimeout(() => {
-      setRaffle({
-        id: params.id,
-        title: "Viaje a Cancún",
-        description: "Viaje todo incluido para 2 personas a Cancún, Quintana Roo",
-        image: "/cancun-beach-resort.png",
-        price: 50,
-        numbers_total: 1000,
-        numbers_sold: 342,
-        prize_value: 15000,
-        start_date: "2025-01-15",
-        end_date: "2025-02-15",
-        draw_date: "2025-02-20",
-        details: "Incluye: vuelo redondo, 5 noches de hotel 5 estrellas, desayuno incluido, tours y actividades.",
-      })
-      setLoading(false)
-    }, 500)
+    const fetchRaffle = async () => {
+      setError("")
+      setLoading(true)
+      try {
+        const { data } = await raffleApi.getRaffleById(params.id as string)
+        if (!data?.data) {
+          setError("Rifa no encontrada")
+          setLoading(false)
+          return
+        }
+        const r = data.data
+        setRaffle({
+          id: r.id,
+          title: r.nombre,
+          description: r.descripcion || "Rifa disponible",
+          image: r.image_url || "/placeholder.svg",
+          price: Number(r.precio_numero) || 0,
+          numbers_total: Number(r.rango_maximo) || 0,
+          numbers_sold: 0,
+          prize_value: 0,
+          start_date: r.created_at || r.fecha_sorteo,
+          end_date: r.fecha_sorteo,
+          draw_date: r.fecha_sorteo,
+          details: r.datos_pago_admin?.titular_nombre
+            ? `Pago a: ${r.datos_pago_admin.titular_nombre}`
+            : "Detalles no disponibles",
+        })
+      } catch (err) {
+        setError("No se pudo cargar la rifa")
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchRaffle()
   }, [params.id])
+
+  const progress = useMemo(() => {
+    if (!raffle || !raffle.numbers_total) return 0
+    return (raffle.numbers_sold / raffle.numbers_total) * 100
+  }, [raffle])
+
+  const totalPrice = useMemo(() => (raffle ? selectedNumbers.length * raffle.price : 0), [raffle, selectedNumbers])
 
   if (loading) {
     return (
@@ -49,13 +75,13 @@ export default function RafflePage() {
     )
   }
 
-  if (!raffle) {
+  if (error || !raffle) {
     return (
       <div className="flex flex-col min-h-screen">
         <Navbar />
         <main className="flex-1 py-20 px-4">
           <div className="max-w-6xl mx-auto text-center">
-            <h1 className="text-2xl font-bold text-destructive">Rifa no encontrada</h1>
+            <h1 className="text-2xl font-bold text-destructive">{error || "Rifa no encontrada"}</h1>
             <Button asChild className="mt-4">
               <Link href="/raffles">Volver a Rifas</Link>
             </Button>
@@ -65,9 +91,6 @@ export default function RafflePage() {
       </div>
     )
   }
-
-  const progress = (raffle.numbers_sold / raffle.numbers_total) * 100
-  const totalPrice = selectedNumbers.length * raffle.price
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -119,15 +142,21 @@ export default function RafflePage() {
                 <div className="grid grid-cols-3 gap-4">
                   <div>
                     <p className="text-sm text-muted-foreground">Inicio de Venta</p>
-                    <p className="font-bold">{new Date(raffle.start_date).toLocaleDateString("es-ES")}</p>
+                    <p className="font-bold">
+                      {raffle.start_date ? new Date(raffle.start_date).toLocaleDateString("es-ES") : "—"}
+                    </p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Cierre de Venta</p>
-                    <p className="font-bold">{new Date(raffle.end_date).toLocaleDateString("es-ES")}</p>
+                    <p className="font-bold">
+                      {raffle.end_date ? new Date(raffle.end_date).toLocaleDateString("es-ES") : "—"}
+                    </p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Fecha de Sorteo</p>
-                    <p className="font-bold">{new Date(raffle.draw_date).toLocaleDateString("es-ES")}</p>
+                    <p className="font-bold">
+                      {raffle.draw_date ? new Date(raffle.draw_date).toLocaleDateString("es-ES") : "—"}
+                    </p>
                   </div>
                 </div>
               </div>

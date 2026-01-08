@@ -26,7 +26,9 @@ export default function Navbar() {
             asChild
             className="border-primary text-primary hover:bg-primary hover:text-primary-foreground bg-transparent"
           >
-            <Link href="/admin/login">Admin</Link>
+            <Link href="/admin/login" target="_blank" rel="noopener noreferrer">
+              Admin
+            </Link>
           </Button>
         </div>
 
@@ -46,7 +48,9 @@ export default function Navbar() {
             Rifas
           </Link>
           <Button variant="outline" asChild className="w-full border-primary text-primary bg-transparent">
-            <Link href="/admin/login">Admin</Link>
+            <Link href="/admin/login" target="_blank" rel="noopener noreferrer">
+              Admin
+            </Link>
           </Button>
         </div>
       )}

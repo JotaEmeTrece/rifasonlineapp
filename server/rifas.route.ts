@@ -36,6 +36,8 @@ interface RifasBody {
     fecha_sorteo: string;
     datos_pago_admin: DatosPagoAdmin;
     rango_maximo: number;
+    image_url?: string;
+    moneda?: string;
 }
 
 interface ReservaBody {
@@ -118,6 +120,24 @@ const requireAdmin = (req: Request, res: Response, next: Function) => {
 // =============== RUTAS DEL SISTEMA =====================
 // ======================================================
 
+/** GET /api/rifas */
+rifasRouter.get('/', async (_req: Request, res: Response) => {
+    try {
+        const { data, error } = await supabaseAdmin
+            .from('rifas')
+            .select('id, nombre, precio_numero, rango_maximo, fecha_sorteo, datos_pago_admin, image_url, moneda')
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            return res.status(500).json({ success: false, message: 'Error al listar rifas.' });
+        }
+
+        return res.status(200).json({ success: true, data });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: 'Error interno.' });
+    }
+});
+
 /** GET /api/rifas/:rifaId */
 rifasRouter.get('/:rifaId', async (req: Request, res: Response) => {
     try {
@@ -130,7 +150,7 @@ rifasRouter.get('/:rifaId', async (req: Request, res: Response) => {
 
         const { data: rifa, error } = await supabaseAdmin
             .from('rifas')
-            .select('id, nombre, precio_numero, rango_maximo, datos_pago_admin')
+            .select('id, nombre, precio_numero, rango_maximo, datos_pago_admin, fecha_sorteo, image_url, moneda')
             .eq('id', rifaId)
             .single();
 
@@ -150,7 +170,14 @@ rifasRouter.get('/:rifaId', async (req: Request, res: Response) => {
 
 rifasRouter.post('/create', requireAdmin, async (req: Request<{}, {}, RifasBody>, res: Response) => {
     try {
-        const { nombre, precio_numero, fecha_sorteo, datos_pago_admin, rango_maximo } = req.body;
+        const { nombre, precio_numero, fecha_sorteo, datos_pago_admin, rango_maximo, image_url, moneda } = req.body;
+
+        if (moneda && moneda !== 'USD' && moneda !== 'Bs') {
+            return res.status(400).json({ error: 'Moneda inválida. Use USD o Bs.' });
+        }
+
+        const monedaValor = moneda === 'Bs' ? 'Bs' : 'USD';
+        const imageUrlClean = image_url && image_url.trim().length > 0 ? image_url.trim() : null;
 
         if (rango_maximo <= 0 || !Number.isInteger(rango_maximo)) {
             return res.status(400).json({ error: 'El rango máximo debe ser un entero positivo.' });
@@ -158,7 +185,7 @@ rifasRouter.post('/create', requireAdmin, async (req: Request<{}, {}, RifasBody>
 
         const { data: rifa, error: rifaError } = await supabaseAdmin
             .from('rifas')
-            .insert({ nombre, precio_numero, fecha_sorteo, datos_pago_admin, rango_maximo })
+            .insert({ nombre, precio_numero, fecha_sorteo, datos_pago_admin, rango_maximo, image_url: imageUrlClean, moneda: monedaValor })
             .select()
             .single();
 
