@@ -1,7 +1,7 @@
-"use client"
+﻿"use client"
 
 import type React from "react"
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Grid, type CellComponentProps } from "react-window"
 import { Input } from "@/components/ui/input"
 
@@ -10,12 +10,15 @@ interface NumberGridProps {
   selected: string[]
   onSelect: (numbers: string[]) => void
   soldNumbers: string[]
+  availableNumbers?: string[]
 }
 
-export default function NumberGrid({ total, selected, onSelect, soldNumbers }: NumberGridProps) {
+export default function NumberGrid({ total, selected, onSelect, soldNumbers, availableNumbers }: NumberGridProps) {
   const [searchNumber, setSearchNumber] = useState("")
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const [gridWidth, setGridWidth] = useState(0)
 
-  const numDigits = useMemo(() => total.toString().length, [total])
+  const numDigits = useMemo(() => String(total - 1).length, [total])
   const formatNumber = useCallback((num: number): string => num.toString().padStart(numDigits, "0"), [numDigits])
 
   const handleToggle = useCallback(
@@ -31,7 +34,7 @@ export default function NumberGrid({ total, selected, onSelect, soldNumbers }: N
 
   const handleSelectRandom = useCallback(() => {
     const allNumbers = Array.from({ length: total }, (_, i) => formatNumber(i))
-    const available = allNumbers.filter((n) => !soldNumbers.includes(n))
+    const available = availableNumbers ? [...availableNumbers] : allNumbers.filter((n) => !soldNumbers.includes(n))
 
     if (available.length === 0) return
 
@@ -43,17 +46,28 @@ export default function NumberGrid({ total, selected, onSelect, soldNumbers }: N
       available.splice(idx, 1)
     }
     onSelect(random)
-  }, [formatNumber, onSelect, soldNumbers, total])
+  }, [availableNumbers, formatNumber, onSelect, soldNumbers, total])
 
-  const allNumbers = useMemo(() => Array.from({ length: total }, (_, i) => formatNumber(i)), [total, formatNumber])
+  const allNumbers = useMemo(() => {
+    if (availableNumbers) return availableNumbers
+    return Array.from({ length: total }, (_, i) => formatNumber(i))
+  }, [availableNumbers, total, formatNumber])
 
   const filteredNumbers = useMemo(() => {
     if (!searchNumber) return allNumbers
     return allNumbers.filter((num) => num.includes(searchNumber))
   }, [allNumbers, searchNumber])
 
-  const cols = total <= 100 ? 10 : 20
-  const cellSize = total <= 100 ? 40 : 32
+  const displayTotal = availableNumbers ? availableNumbers.length : total
+  const baseCellSize = displayTotal <= 100 ? 40 : 32
+  const cols = gridWidth
+    ? Math.max(1, Math.floor(gridWidth / (baseCellSize + 8)))
+    : displayTotal <= 100
+      ? 10
+      : 20
+  const cellSize = gridWidth
+    ? Math.max(28, Math.min(baseCellSize, Math.floor((gridWidth - (cols - 1) * 8) / cols)))
+    : baseCellSize
   const rowCount = Math.ceil(filteredNumbers.length / cols)
 
   const Cell = ({ columnIndex, rowIndex, style }: CellComponentProps) => {
@@ -90,7 +104,17 @@ export default function NumberGrid({ total, selected, onSelect, soldNumbers }: N
     )
   }
 
-  const gridWidth = cols * (cellSize + 8)
+  useEffect(() => {
+    if (!containerRef.current) return
+    const el = containerRef.current
+    const updateWidth = () => setGridWidth(el.clientWidth)
+    updateWidth()
+    const observer = new ResizeObserver(updateWidth)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  const resolvedGridWidth = gridWidth || cols * (cellSize + 8)
 
   return (
     <div className="space-y-4">
@@ -109,7 +133,7 @@ export default function NumberGrid({ total, selected, onSelect, soldNumbers }: N
         Seleccionar al Azar (10)
       </button>
 
-      <div className="border border-border rounded-md">
+      <div ref={containerRef} className="border border-border rounded-md">
         <Grid
           columnCount={cols}
           columnWidth={cellSize + 8}
@@ -117,14 +141,13 @@ export default function NumberGrid({ total, selected, onSelect, soldNumbers }: N
           rowHeight={cellSize + 8}
           cellComponent={Cell}
           cellProps={{}} // requerido en v2
-          style={{ height: 360, width: gridWidth }} // en v2 el tamaño va por style (no height/width props)
+          style={{ height: 360, width: resolvedGridWidth }} // en v2 el tamaño va por style (no height/width props)
         />
       </div>
 
       <p className="text-xs text-muted-foreground text-center">
-        {selected.length} de {total} números disponibles
+        {selected.length} de {displayTotal} números disponibles
       </p>
     </div>
   )
 }
-

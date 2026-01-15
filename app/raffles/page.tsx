@@ -20,8 +20,8 @@ export default function RafflesPage() {
           description: r.fecha_sorteo ? `Sorteo: ${r.fecha_sorteo}` : "Rifa disponible",
           image: r.image_url || "/placeholder.svg",
           price: Number(r.precio_numero) || 0,
-          numbers_total: Number(r.rango_maximo) || 0,
-          numbers_sold: 0,
+          numbers_total: Number(r.numbers_total ?? r.rango_maximo) || 0,
+          numbers_sold: Number(r.numbers_sold) || 0,
           prize_value: 0,
         }))
         setRaffles(mapped)

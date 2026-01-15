@@ -48,3 +48,4 @@ export default function AdminSidebar({ activeTab, setActiveTab }: AdminSidebarPr
     </aside>
   )
 }
+

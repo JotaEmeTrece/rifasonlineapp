@@ -28,6 +28,9 @@ interface DatosPagoAdmin {
     banco: string;
     numero_telefono: string;
     cedula_id: string;
+    premio?: string;
+    loteria?: string;
+    hora_sorteo?: string;
 }
 
 interface RifasBody {
@@ -50,6 +53,11 @@ interface ReservaBody {
 }
 
 interface ConfirmPaymentBody {
+    rifa_id: string;
+    numero: string;
+}
+
+interface RejectReservationBody {
     rifa_id: string;
     numero: string;
 }
@@ -120,19 +128,105 @@ const requireAdmin = (req: Request, res: Response, next: Function) => {
 // =============== RUTAS DEL SISTEMA =====================
 // ======================================================
 
+const getRifaCounts = async (rifaId: string) => {
+    const { count: totalCount } = await supabaseAdmin
+        .from('numeros')
+        .select('id', { count: 'exact', head: true })
+        .eq('rifa_id', rifaId);
+
+    const { count: soldCount } = await supabaseAdmin
+        .from('numeros')
+        .select('id', { count: 'exact', head: true })
+        .eq('rifa_id', rifaId)
+        .eq('status', 'paid');
+
+    return {
+        numbers_total: totalCount || 0,
+        numbers_sold: soldCount || 0,
+    };
+};
+
+/** PATCH /api/rifas/:rifaId/close */
+rifasRouter.patch('/:rifaId/close', requireAdmin, async (req: Request, res: Response) => {
+    try {
+        const { rifaId } = req.params;
+        const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
+        if (!rifaId || !uuidRegex.test(rifaId)) {
+            return res.status(400).json({ success: false, message: 'ID inválido.' });
+        }
+
+        const { data, error } = await supabaseAdmin
+            .from('rifas')
+            .update({ is_active: false })
+            .eq('id', rifaId)
+            .select()
+            .single();
+
+        if (error || !data) {
+            return res.status(500).json({ success: false, message: 'No se pudo cerrar la rifa.' });
+        }
+
+        return res.status(200).json({ success: true, data });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: 'Error interno.' });
+    }
+});
+
+/** DELETE /api/rifas/:rifaId */
+rifasRouter.delete('/:rifaId', requireAdmin, async (req: Request, res: Response) => {
+    try {
+        const { rifaId } = req.params;
+        const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
+        if (!rifaId || !uuidRegex.test(rifaId)) {
+            return res.status(400).json({ success: false, message: 'ID inválido.' });
+        }
+
+        const { error: numerosError } = await supabaseAdmin
+            .from('numeros')
+            .delete()
+            .eq('rifa_id', rifaId);
+
+        if (numerosError) {
+            return res.status(500).json({ success: false, message: 'No se pudieron eliminar números.' });
+        }
+
+        const { error: rifaError } = await supabaseAdmin
+            .from('rifas')
+            .delete()
+            .eq('id', rifaId);
+
+        if (rifaError) {
+            return res.status(500).json({ success: false, message: 'No se pudo eliminar la rifa.' });
+        }
+
+        return res.status(200).json({ success: true });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: 'Error interno.' });
+    }
+});
+
 /** GET /api/rifas */
 rifasRouter.get('/', async (_req: Request, res: Response) => {
     try {
         const { data, error } = await supabaseAdmin
             .from('rifas')
-            .select('id, nombre, precio_numero, rango_maximo, fecha_sorteo, datos_pago_admin, image_url, moneda')
+            .select('id, nombre, precio_numero, rango_maximo, fecha_sorteo, datos_pago_admin, image_url, moneda, is_active, created_at')
             .order('created_at', { ascending: false });
 
         if (error) {
             return res.status(500).json({ success: false, message: 'Error al listar rifas.' });
         }
 
-        return res.status(200).json({ success: true, data });
+        const withCounts = await Promise.all(
+            (data || []).map(async (rifa) => {
+                const counts = await getRifaCounts(rifa.id);
+                return { ...rifa, ...counts };
+            })
+        );
+
+        return res.status(200).json({ success: true, data: withCounts });
     } catch (err) {
         return res.status(500).json({ success: false, message: 'Error interno.' });
     }
@@ -158,7 +252,12 @@ rifasRouter.get('/:rifaId', async (req: Request, res: Response) => {
             return res.status(404).json({ success: false, message: 'Rifa no encontrada.' });
         }
 
-        return res.status(200).json({ success: true, data: { ...rifa, precio_numero: parseFloat(rifa.precio_numero) } });
+        const counts = await getRifaCounts(rifa.id);
+
+        return res.status(200).json({
+            success: true,
+            data: { ...rifa, ...counts, precio_numero: parseFloat(rifa.precio_numero) }
+        });
     } catch (err) {
         return res.status(500).json({ success: false, message: 'Error interno.' });
     }
@@ -194,10 +293,10 @@ rifasRouter.post('/create', requireAdmin, async (req: Request<{}, {}, RifasBody>
         }
 
         const rifaId = rifa.id;
-        const padding = String(rango_maximo).length;
+        const padding = String(rango_maximo - 1).length;
         const numerosToInsert = [];
 
-        for (let i = 0; i <= rango_maximo; i++) {
+        for (let i = 0; i < rango_maximo; i++) {
             numerosToInsert.push({
                 rifa_id: rifaId,
                 numero: String(i).padStart(padding, '0'),
@@ -330,6 +429,59 @@ rifasRouter.post('/confirm-payment', requireAdmin, async (req: Request<{}, {}, C
     }
 });
 
+// Rechazar reserva (libera el número)
+rifasRouter.post('/reject-reservation', requireAdmin, async (req: Request<{}, {}, RejectReservationBody>, res: Response) => {
+    try {
+        const supabaseClient = supabaseAdmin;
+        const { rifa_id, numero } = req.body;
+
+        if (!rifa_id || !numero) {
+            return res.status(400).json({ success: false, message: 'Rifa y número requeridos.' });
+        }
+
+        const { data: numeroActual } = await supabaseClient
+            .from('numeros')
+            .select('status')
+            .eq('rifa_id', rifa_id)
+            .eq('numero', numero)
+            .single();
+
+        if (!numeroActual) {
+            return res.status(404).json({ success: false, message: 'Número no existe.' });
+        }
+
+        if (numeroActual.status !== 'reserved') {
+            return res.status(409).json({ success: false, message: 'No se puede rechazar.' });
+        }
+
+        const { data: updateData, error } = await supabaseClient
+            .from('numeros')
+            .update({
+                status: 'available',
+                user_whatsapp: null,
+                full_name: null,
+                payment_ref: null,
+                banco_cliente: null,
+                reserved_at: null,
+                expires_at: null,
+                is_paid_confirmed: false,
+            })
+            .eq('rifa_id', rifa_id)
+            .eq('numero', numero)
+            .eq('status', 'reserved')
+            .select()
+            .single();
+
+        if (error || !updateData) {
+            return res.status(409).json({ success: false, message: 'No se pudo rechazar.' });
+        }
+
+        return res.status(200).json({ success: true, message: 'Reserva rechazada.', data: updateData });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: 'Error interno.' });
+    }
+});
+
 // ======================================================
 // =============== LISTAR ESTADOS ========================
 // ======================================================
@@ -362,6 +514,41 @@ rifasRouter.get('/paid/:rifaId', async (req: Request, res: Response) => {
         return res.status(200).json({ success: true, data });
     } catch (err) {
         return res.status(500).json({ success: false });
+    }
+});
+
+rifasRouter.get('/reserved/all', requireAdmin, async (_req: Request, res: Response) => {
+    try {
+        const { data, error } = await supabaseAdmin
+            .from('numeros')
+            .select('id, rifa_id, numero, user_whatsapp, full_name, payment_ref, banco_cliente, reserved_at')
+            .eq('status', 'reserved')
+            .order('reserved_at', { ascending: false });
+
+        if (error) {
+            return res.status(500).json({ success: false, message: 'No se pudieron cargar las reservas.' });
+        }
+
+        const rifaIds = Array.from(new Set((data || []).map((row) => row.rifa_id)));
+        let rifaMap: Record<string, string> = {};
+
+        if (rifaIds.length > 0) {
+            const { data: rifasData } = await supabaseAdmin
+                .from('rifas')
+                .select('id, nombre')
+                .in('id', rifaIds);
+
+            rifaMap = Object.fromEntries((rifasData || []).map((r) => [r.id, r.nombre]));
+        }
+
+        const mapped = (data || []).map((row) => ({
+            ...row,
+            rifa_nombre: rifaMap[row.rifa_id] || null,
+        }));
+
+        return res.status(200).json({ success: true, data: mapped });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: 'Error interno.' });
     }
 });
 

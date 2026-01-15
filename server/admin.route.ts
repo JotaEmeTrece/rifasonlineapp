@@ -8,6 +8,21 @@ const router = express.Router();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'clave_super_secreta_cambia_esto';
 
+router.get('/me', (req: Request, res: Response) => {
+  try {
+    const authHeader = req.headers.authorization || "";
+    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    if (!token) {
+      return res.status(401).json({ error: "Token no proporcionado" });
+    }
+
+    const decoded = jwt.verify(token, JWT_SECRET) as { id: string; email: string; role?: string };
+    return res.status(200).json({ admin: decoded });
+  } catch (err) {
+    return res.status(401).json({ error: "Token inválido o expirado" });
+  }
+});
+
 router.post('/login', async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;

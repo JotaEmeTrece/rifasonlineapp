@@ -19,8 +19,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Check if user is authenticated on mount
   useEffect(() => {
     const token = localStorage.getItem("adminToken")
-    setIsAuthenticated(!!token)
-    setIsLoading(false)
+    if (!token) {
+      setIsAuthenticated(false)
+      setIsLoading(false)
+      return
+    }
+
+    authApi
+      .me()
+      .then(() => {
+        setIsAuthenticated(true)
+      })
+      .catch(() => {
+        localStorage.removeItem("adminToken")
+        setIsAuthenticated(false)
+      })
+      .finally(() => {
+        setIsLoading(false)
+      })
   }, [])
 
   const login = async (email: string, password: string) => {
