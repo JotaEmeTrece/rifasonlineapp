@@ -1,419 +1,92 @@
-# Raffle app frontend
+# 🎟️ Rifas Online App
 
-*Automatically synced with your [v0.app](https://v0.app) deployments*
+Plataforma web completa para la creación y venta de rifas en línea, con panel de administración y confirmación automática vía WhatsApp.
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/apprifas13-6930s-projects/v0-raffle-app-frontend)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.app-black?style=for-the-badge)](https://v0.app/chat/oh0f0YwNq9g)
+## ✨ Funcionalidades
 
-## Overview
+### Cliente
+- Visualización de rifas activas
+- Selección de números en grilla interactiva
+- Flujo de compra con registro de nombre, teléfono y referencia/captura de pago
+- Recepción automática de ticket de confirmación vía **WhatsApp** al momento de aprobación
 
-This repository will stay in sync with your deployed chats on [v0.app](https://v0.app).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.app](https://v0.app).
+### Administrador
+- Panel privado con autenticación protegida
+- Creación y gestión completa de rifas
+- Visualización de transacciones en tiempo real
+- Confirmación y aprobación de pagos
+- Dashboard con estadísticas de ventas e ingresos
+- Disparo automático de ticket al cliente tras aprobación
 
-## Deployment
+## 🛠️ Tech Stack
 
-Your project is live at:
+| Capa | Tecnología |
+|------|-----------|
+| Frontend | Next.js 14, TypeScript, Tailwind CSS, shadcn/ui |
+| Backend | Node.js, Express.js, TypeScript |
+| Base de datos | Supabase (PostgreSQL) |
+| Despliegue | Vercel |
 
-**[https://vercel.com/apprifas13-6930s-projects/v0-raffle-app-frontend](https://vercel.com/apprifas13-6930s-projects/v0-raffle-app-frontend)**
-
-## Build your app
-
-Continue building your app on:
-
-**[https://v0.app/chat/oh0f0YwNq9g](https://v0.app/chat/oh0f0YwNq9g)**
-
-## How It Works
-
-1. Create and modify your project using [v0.app](https://v0.app)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
-
-```
-rifasonlineapp
-├─ app
-│  ├─ admin
-│  │  ├─ dashboard
-│  │  │  └─ page.tsx
-│  │  └─ login
-│  │     └─ page.tsx
-│  ├─ globals.css
-│  ├─ layout.tsx
-│  ├─ page.tsx
-│  ├─ raffle
-│  │  └─ [id]
-│  │     └─ page.tsx
-│  └─ raffles
-│     └─ page.tsx
-├─ components
-│  ├─ admin-nav.tsx
-│  ├─ admin-sidebar.tsx
-│  ├─ auth-guard.tsx
-│  ├─ footer.tsx
-│  ├─ navbar.tsx
-│  ├─ number-grid.tsx
-│  ├─ raffle-grid.tsx
-│  ├─ theme-provider.tsx
-│  └─ ui
-│     ├─ accordion.tsx
-│     ├─ alert-dialog.tsx
-│     ├─ alert.tsx
-│     ├─ aspect-ratio.tsx
-│     ├─ avatar.tsx
-│     ├─ badge.tsx
-│     ├─ breadcrumb.tsx
-│     ├─ button-group.tsx
-│     ├─ button.tsx
-│     ├─ calendar.tsx
-│     ├─ card.tsx
-│     ├─ carousel.tsx
-│     ├─ chart.tsx
-│     ├─ checkbox.tsx
-│     ├─ collapsible.tsx
-│     ├─ command.tsx
-│     ├─ context-menu.tsx
-│     ├─ dialog.tsx
-│     ├─ drawer.tsx
-│     ├─ dropdown-menu.tsx
-│     ├─ empty.tsx
-│     ├─ field.tsx
-│     ├─ form.tsx
-│     ├─ hover-card.tsx
-│     ├─ input-group.tsx
-│     ├─ input-otp.tsx
-│     ├─ input.tsx
-│     ├─ item.tsx
-│     ├─ kbd.tsx
-│     ├─ label.tsx
-│     ├─ menubar.tsx
-│     ├─ navigation-menu.tsx
-│     ├─ pagination.tsx
-│     ├─ popover.tsx
-│     ├─ progress.tsx
-│     ├─ radio-group.tsx
-│     ├─ resizable.tsx
-│     ├─ scroll-area.tsx
-│     ├─ select.tsx
-│     ├─ separator.tsx
-│     ├─ sheet.tsx
-│     ├─ sidebar.tsx
-│     ├─ skeleton.tsx
-│     ├─ slider.tsx
-│     ├─ sonner.tsx
-│     ├─ spinner.tsx
-│     ├─ switch.tsx
-│     ├─ table.tsx
-│     ├─ tabs.tsx
-│     ├─ textarea.tsx
-│     ├─ toast.tsx
-│     ├─ toaster.tsx
-│     ├─ toggle-group.tsx
-│     ├─ toggle.tsx
-│     ├─ tooltip.tsx
-│     ├─ use-mobile.tsx
-│     └─ use-toast.ts
-├─ components.json
-├─ context
-│  └─ auth-context.tsx
-├─ hooks
-│  ├─ use-mobile.ts
-│  └─ use-toast.ts
-├─ lib
-│  ├─ api-client.ts
-│  ├─ api-helpers.ts
-│  └─ utils.ts
-├─ next.config.mjs
-├─ package.json
-├─ pnpm-lock.yaml
-├─ postcss.config.mjs
-├─ public
-│  ├─ apple-icon.png
-│  ├─ cancun-beach-resort.png
-│  ├─ gold-jewelry-luxury.jpg
-│  ├─ icon-dark-32x32.png
-│  ├─ icon-light-32x32.png
-│  ├─ icon.svg
-│  ├─ iphone-15-pro-luxury.jpg
-│  ├─ placeholder-logo.png
-│  ├─ placeholder-logo.svg
-│  ├─ placeholder-user.jpg
-│  ├─ placeholder.jpg
-│  ├─ placeholder.svg
-│  ├─ premium-laptop-computer.jpg
-│  ├─ sports-car-luxury.jpg
-│  └─ swiss-watch-diamond-luxury.jpg
-├─ README.md
-├─ server
-│  ├─ index.ts
-│  ├─ package.json
-│  ├─ pnpm-lock.yaml
-│  ├─ rifas.route.ts
-│  ├─ supabaseClient.ts
-│  └─ tsconfig.json
-├─ styles
-│  └─ globals.css
-└─ tsconfig.json
+## 📁 Estructura del proyecto
 
 ```
+rifasonlineapp/
+├── app/                  # Páginas Next.js (App Router)
+│   ├── raffle/[id]/      # Vista de rifa individual
+│   ├── raffles/          # Listado de rifas
+│   └── admin/            # Panel de administración
+├── components/           # Componentes reutilizables
+├── server/               # API REST con Express
+│   ├── rifas.route.ts    # Endpoints de rifas
+│   ├── admin.route.ts    # Endpoints de administración
+│   └── middleware/       # Autenticación de admin
+├── context/              # Estado global (Auth)
+└── lib/                  # Utilidades y cliente API
 ```
-rifasonlineapp
-├─ app
-│  ├─ admin
-│  │  ├─ dashboard
-│  │  │  └─ page.tsx
-│  │  └─ login
-│  │     └─ page.tsx
-│  ├─ globals.css
-│  ├─ layout.tsx
-│  ├─ page.tsx
-│  ├─ raffle
-│  │  └─ [id]
-│  │     └─ page.tsx
-│  └─ raffles
-│     └─ page.tsx
-├─ components
-│  ├─ admin-nav.tsx
-│  ├─ admin-sidebar.tsx
-│  ├─ auth-guard.tsx
-│  ├─ footer.tsx
-│  ├─ navbar.tsx
-│  ├─ number-grid.tsx
-│  ├─ raffle-grid.tsx
-│  ├─ theme-provider.tsx
-│  └─ ui
-│     ├─ accordion.tsx
-│     ├─ alert-dialog.tsx
-│     ├─ alert.tsx
-│     ├─ aspect-ratio.tsx
-│     ├─ avatar.tsx
-│     ├─ badge.tsx
-│     ├─ breadcrumb.tsx
-│     ├─ button-group.tsx
-│     ├─ button.tsx
-│     ├─ calendar.tsx
-│     ├─ card.tsx
-│     ├─ carousel.tsx
-│     ├─ chart.tsx
-│     ├─ checkbox.tsx
-│     ├─ collapsible.tsx
-│     ├─ command.tsx
-│     ├─ context-menu.tsx
-│     ├─ dialog.tsx
-│     ├─ drawer.tsx
-│     ├─ dropdown-menu.tsx
-│     ├─ empty.tsx
-│     ├─ field.tsx
-│     ├─ form.tsx
-│     ├─ hover-card.tsx
-│     ├─ input-group.tsx
-│     ├─ input-otp.tsx
-│     ├─ input.tsx
-│     ├─ item.tsx
-│     ├─ kbd.tsx
-│     ├─ label.tsx
-│     ├─ menubar.tsx
-│     ├─ navigation-menu.tsx
-│     ├─ pagination.tsx
-│     ├─ popover.tsx
-│     ├─ progress.tsx
-│     ├─ radio-group.tsx
-│     ├─ resizable.tsx
-│     ├─ scroll-area.tsx
-│     ├─ select.tsx
-│     ├─ separator.tsx
-│     ├─ sheet.tsx
-│     ├─ sidebar.tsx
-│     ├─ skeleton.tsx
-│     ├─ slider.tsx
-│     ├─ sonner.tsx
-│     ├─ spinner.tsx
-│     ├─ switch.tsx
-│     ├─ table.tsx
-│     ├─ tabs.tsx
-│     ├─ textarea.tsx
-│     ├─ toast.tsx
-│     ├─ toaster.tsx
-│     ├─ toggle-group.tsx
-│     ├─ toggle.tsx
-│     ├─ tooltip.tsx
-│     ├─ use-mobile.tsx
-│     └─ use-toast.ts
-├─ components.json
-├─ context
-│  └─ auth-context.tsx
-├─ flow to github via PS
-├─ hooks
-│  ├─ use-mobile.ts
-│  └─ use-toast.ts
-├─ lib
-│  ├─ api-client.ts
-│  ├─ api-helpers.ts
-│  └─ utils.ts
-├─ next.config.mjs
-├─ package.json
-├─ pnpm-lock.yaml
-├─ postcss.config.mjs
-├─ public
-│  ├─ apple-icon.png
-│  ├─ cancun-beach-resort.png
-│  ├─ gold-jewelry-luxury.jpg
-│  ├─ icon-dark-32x32.png
-│  ├─ icon-light-32x32.png
-│  ├─ icon.svg
-│  ├─ iphone-15-pro-luxury.jpg
-│  ├─ placeholder-logo.png
-│  ├─ placeholder-logo.svg
-│  ├─ placeholder-user.jpg
-│  ├─ placeholder.jpg
-│  ├─ placeholder.svg
-│  ├─ premium-laptop-computer.jpg
-│  ├─ sports-car-luxury.jpg
-│  └─ swiss-watch-diamond-luxury.jpg
-├─ README.md
-├─ server
-│  ├─ admin.route.ts
-│  ├─ index.ts
-│  ├─ middleware
-│  │  └─ authadmin.ts
-│  ├─ package.json
-│  ├─ pnpm-lock.yaml
-│  ├─ rifas.route.ts
-│  ├─ supabaseClient.ts
-│  └─ tsconfig.json
-├─ styles
-│  └─ globals.css
-└─ tsconfig.json
 
-```
-```
-rifasonlineapp
-├─ app
-│  ├─ admin
-│  │  ├─ dashboard
-│  │  │  └─ page.tsx
-│  │  └─ login
-│  │     └─ page.tsx
-│  ├─ globals.css
-│  ├─ layout.tsx
-│  ├─ page.tsx
-│  ├─ raffle
-│  │  └─ [id]
-│  │     └─ page.tsx
-│  └─ raffles
-│     └─ page.tsx
-├─ components
-│  ├─ admin-nav.tsx
-│  ├─ admin-sidebar.tsx
-│  ├─ auth-guard.tsx
-│  ├─ footer.tsx
-│  ├─ navbar.tsx
-│  ├─ number-grid.tsx
-│  ├─ raffle-grid.tsx
-│  ├─ theme-provider.tsx
-│  └─ ui
-│     ├─ accordion.tsx
-│     ├─ alert-dialog.tsx
-│     ├─ alert.tsx
-│     ├─ aspect-ratio.tsx
-│     ├─ avatar.tsx
-│     ├─ badge.tsx
-│     ├─ breadcrumb.tsx
-│     ├─ button-group.tsx
-│     ├─ button.tsx
-│     ├─ calendar.tsx
-│     ├─ card.tsx
-│     ├─ carousel.tsx
-│     ├─ chart.tsx
-│     ├─ checkbox.tsx
-│     ├─ collapsible.tsx
-│     ├─ command.tsx
-│     ├─ context-menu.tsx
-│     ├─ dialog.tsx
-│     ├─ drawer.tsx
-│     ├─ dropdown-menu.tsx
-│     ├─ empty.tsx
-│     ├─ field.tsx
-│     ├─ form.tsx
-│     ├─ hover-card.tsx
-│     ├─ input-group.tsx
-│     ├─ input-otp.tsx
-│     ├─ input.tsx
-│     ├─ item.tsx
-│     ├─ kbd.tsx
-│     ├─ label.tsx
-│     ├─ menubar.tsx
-│     ├─ navigation-menu.tsx
-│     ├─ pagination.tsx
-│     ├─ popover.tsx
-│     ├─ progress.tsx
-│     ├─ radio-group.tsx
-│     ├─ resizable.tsx
-│     ├─ scroll-area.tsx
-│     ├─ select.tsx
-│     ├─ separator.tsx
-│     ├─ sheet.tsx
-│     ├─ sidebar.tsx
-│     ├─ skeleton.tsx
-│     ├─ slider.tsx
-│     ├─ sonner.tsx
-│     ├─ spinner.tsx
-│     ├─ switch.tsx
-│     ├─ table.tsx
-│     ├─ tabs.tsx
-│     ├─ textarea.tsx
-│     ├─ toast.tsx
-│     ├─ toaster.tsx
-│     ├─ toggle-group.tsx
-│     ├─ toggle.tsx
-│     ├─ tooltip.tsx
-│     ├─ use-mobile.tsx
-│     └─ use-toast.ts
-├─ components.json
-├─ context
-│  └─ auth-context.tsx
-├─ flow to github via PS
-├─ hooks
-│  ├─ use-mobile.ts
-│  └─ use-toast.ts
-├─ lib
-│  ├─ api-client.ts
-│  ├─ api-helpers.ts
-│  └─ utils.ts
-├─ next.config.mjs
-├─ package.json
-├─ pnpm-lock.yaml
-├─ postcss.config.mjs
-├─ public
-│  ├─ apple-icon.png
-│  ├─ cancun-beach-resort.png
-│  ├─ gold-jewelry-luxury.jpg
-│  ├─ icon-dark-32x32.png
-│  ├─ icon-light-32x32.png
-│  ├─ icon.svg
-│  ├─ iphone-15-pro-luxury.jpg
-│  ├─ placeholder-logo.png
-│  ├─ placeholder-logo.svg
-│  ├─ placeholder-user.jpg
-│  ├─ placeholder.jpg
-│  ├─ placeholder.svg
-│  ├─ premium-laptop-computer.jpg
-│  ├─ sports-car-luxury.jpg
-│  └─ swiss-watch-diamond-luxury.jpg
-├─ README.md
-├─ server
-│  ├─ admin.route.ts
-│  ├─ index.ts
-│  ├─ middleware
-│  │  └─ authadmin.ts
-│  ├─ package.json
-│  ├─ pnpm-lock.yaml
-│  ├─ rifas.route.ts
-│  ├─ scripts
-│  │  └─ create-admin.js
-│  ├─ supabaseClient.ts
-│  └─ tsconfig.json
-├─ styles
-│  └─ globals.css
-└─ tsconfig.json
+## 🚀 Correr localmente
 
+### Prerrequisitos
+- Node.js 18+
+- pnpm
+- Cuenta en Supabase
+
+### Instalación
+
+```bash
+# Clonar el repositorio
+git clone https://github.com/JotaEmeTrece/rifasonlineapp.git
+cd rifasonlineapp
+
+# Instalar dependencias del frontend
+pnpm install
+
+# Instalar dependencias del servidor
+cd server
+pnpm install
 ```
+
+### Variables de entorno
+
+Crea un archivo `.env` en la raíz y otro en `/server` con las siguientes variables:
+
+```env
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+```
+
+### Ejecutar
+
+```bash
+# Frontend (desde la raíz)
+pnpm dev
+
+# Backend (desde /server)
+pnpm dev
+```
+
+## 📄 Licencia
+
+MIT
