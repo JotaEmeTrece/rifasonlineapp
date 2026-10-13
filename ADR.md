@@ -147,3 +147,57 @@ Durante las pruebas iniciales de interacción extremo a extremo entre clientes d
 * **Compatibilidad 100% con clientes modernos:** Cobertura de chats privados con identificadores LID y chats tradicionales con números de teléfono.
 * **Trazabilidad completa:** Visibilidad inmediata de cada interacción en los logs de producción de Railway.
 
+---
+
+## ADR 004: UX Conversacional Optimizada, Configuración Dinámica de Sorteo (`#sorteo`) y Silencio de Errores
+
+* **Fecha:** 13 de Octubre de 2026
+* **Estado:** Aceptado
+
+---
+
+### 1. Contexto
+
+Durante las pruebas operativas en vivo con usuarios y vendedores reales:
+1. Las rifas no juegan con una lotería fija; cada vendedor decide la lotería y la hora del sorteo según el ritmo de ventas del día. Se requería una forma autónoma para que el vendedor actualizara estos datos sin intervención técnica.
+2. Los clientes necesitaban máxima claridad sobre la mecánica de juego ("juega con los 2 últimos dígitos") y respuestas directas sin ambigüedades.
+3. Se generaban mensajes fantasma repetidos (`⚠️ No se encontraron reservas pendientes para aprobar`) en el chat del cliente cuando el vendedor reaccionaba con emojis (`👍` / `👎`) o enviaba comandos sin reservas activas o ante eventos duplicados de WhatsApp.
+4. Al solicitar un número ocupado, la respuesta previa pedía al usuario escribir la palabra "NUMEROS", lo que añadía fricción innecesaria.
+5. En caso de rechazo del pago, se requería una vía directa para que el cliente contactara al vendedor a su WhatsApp personal/soporte para aclaraciones.
+
+---
+
+### 2. Decisiones
+
+#### 2.1 Comando de Configuración Dinámica de Sorteo (`#sorteo`)
+* El vendedor puede actualizar la lotería y la hora de su rifa activa directamente desde su chat privado consigo mismo en WhatsApp:
+  `#sorteo [Lotería] [Hora]` (ej: `#sorteo Chontico Noche 19:30` o `#sorteo Paisita Día 13:00`).
+* El backend extrae mediante expresiones regulares el nombre de la lotería y la hora, actualiza la tabla `rifas` en Supabase y confirma la actualización al vendedor.
+
+#### 2.2 Especificación Explícita de Reglas en Mensajería
+* Tanto el mensaje de bienvenida como los tickets oficiales de confirmación detallan explícitamente:
+  `🎲 Juega con los 2 últimos dígitos de [Lotería] (Hoy a las [Hora])`.
+
+#### 2.3 Supresión de Mensajes de Error Internos (Silencio Total)
+* Si `#aprobar`, `#rechazar` o una reacción de emoji se ejecutan cuando no existen reservas pendientes (o ya fueron procesadas), el bot registra el evento en los logs internos y no envía ningún mensaje al chat del cliente.
+
+#### 2.4 Matriz Inmediata de Números Disponibles
+* Si el cliente intenta apartar un número que ya está reservado o vendido, el bot le informa de inmediato y le presenta en el mismo mensaje la tabla completa de números libres, invitándolo a responder directamente con su nueva elección.
+
+#### 2.5 Recordatorio de Reserva con Contador de Minutos
+* Cuando un cliente con números apartados envía texto sin comprobante, el bot calcula los minutos reales restantes (`expira_en - now()`) y le notifica el tiempo exacto antes de que sus números sean liberados.
+
+#### 2.6 Enlace Directo a WhatsApp en Casos de Rechazo
+* Al rechazar una reserva, el bot incluye un enlace directo `https://wa.me/{telefono}` para que el cliente se comunique con el vendedor para aclarar su pago.
+
+---
+
+### 3. Consecuencias
+
+#### Positivas:
+* **Autonomía total para el vendedor:** Capacidad de definir su horario y lotería sobre la marcha sin depender del administrador.
+* **Cero fricción para el jugador:** Eliminación de pasos redundantes al seleccionar números.
+* **Cero spam o mensajes fantasma:** Flujo limpio y profesional en la interacción conversacional.
+* **Canalización clara de soporte:** Dudas sobre pagos rechazados se resuelven directamente con el vendedor sin saturar el flujo automatizado del bot.
+
+
