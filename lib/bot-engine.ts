@@ -127,6 +127,60 @@ export async function processIncomingMessage(payload: {
   if (isFromMe) {
     const lower = text.toLowerCase().trim();
 
+    // Comando #sorteo [Lotería] [Hora]
+    if (lower.startsWith("#sorteo")) {
+      const args = text.replace(/^#sorteo\s*/i, "").trim();
+      if (!args) {
+        await sendBotMessage(
+          replyTo,
+          `ℹ️ *Instrucciones para cambiar sorteo:*\n` +
+          `Escribe: *#sorteo [Lotería] [Hora]*\n\n` +
+          `Ejemplos:\n` +
+          `• #sorteo Chontico Noche 19:30\n` +
+          `• #sorteo Paisita Día 13:00\n` +
+          `• #sorteo Sinuano Noche 22:30`
+        );
+        return;
+      }
+
+      // Extraer hora al final si existe (ej: "19:00", "7:30 pm", "22:30")
+      const timeRegex = /\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.)|\d{1,2}:\d{2})$/i;
+      const match = args.match(timeRegex);
+
+      let nuevaLoteria = args;
+      let nuevaHora = rifa.hora_sorteo;
+
+      if (match) {
+        nuevaHora = match[1].trim();
+        nuevaLoteria = args.slice(0, match.index).trim();
+      }
+
+      if (!nuevaLoteria) {
+        nuevaLoteria = rifa.loteria;
+      }
+
+      await supabaseAdmin
+        .from("rifas")
+        .update({
+          loteria: nuevaLoteria,
+          hora_sorteo: nuevaHora,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", rifa.id);
+
+      rifa.loteria = nuevaLoteria;
+      rifa.hora_sorteo = nuevaHora;
+
+      await sendBotMessage(
+        replyTo,
+        `✅ *Sorteo actualizado para la rifa de hoy:*\n\n` +
+        `🎲 Lotería: *${nuevaLoteria}*\n` +
+        `⏰ Hora: *${nuevaHora}*\n` +
+        `📌 Juega con los 2 últimos dígitos.`
+      );
+      return;
+    }
+
     // Comando #aprobar o #aprobado
     if (lower.startsWith("#aprobar") || lower.startsWith("#aprobado")) {
       const numbersInText = parseRequestedNumbers(text);
@@ -147,7 +201,7 @@ export async function processIncomingMessage(payload: {
       const { data: numData } = await query;
 
       if (!numData || numData.length === 0) {
-        await sendBotMessage(replyTo, `⚠️ No se encontraron reservas pendientes para aprobar.`);
+        console.log("[BOT_ENGINE] #aprobar recibido pero no hay reservas pendientes en", replyTo);
         return;
       }
 
@@ -163,7 +217,11 @@ export async function processIncomingMessage(payload: {
       // Notificar al cliente con su ticket oficial
       await sendBotMessage(
         clienteDestino,
-        `🎟️ *¡PAGO CONFIRMADO!*\n\nTus números son: *${numerosConfirmados}*\nJuegan con *${rifa.loteria}* (Sorteo: ${rifa.hora_sorteo}).\n\n🏆 *Premio:* $${rifa.premio.toLocaleString("es-CO")} COP.\n¡Mucha suerte! 🍀`
+        `🎟️ *¡PAGO CONFIRMADO!*\n\n` +
+        `Tus números son: *${numerosConfirmados}*\n` +
+        `Juegan con los 2 últimos dígitos de *${rifa.loteria}* (Sorteo: ${rifa.hora_sorteo}).\n\n` +
+        `🏆 *Premio:* $${rifa.premio.toLocaleString("es-CO")} COP.\n` +
+        `¡Mucha suerte! 🍀`
       );
       return;
     }
@@ -187,11 +245,12 @@ export async function processIncomingMessage(payload: {
       const { data: numData } = await query;
 
       if (!numData || numData.length === 0) {
-        await sendBotMessage(replyTo, `⚠️ No se encontraron reservas pendientes para rechazar.`);
+        console.log("[BOT_ENGINE] #rechazar recibido pero no hay reservas pendientes en", replyTo);
         return;
       }
 
       const ids = numData.map((n) => n.id);
+      const numerosRechazados = numData.map((n) => n.numero).sort().join(", ");
       const clienteDestino = numData[0].cliente_telefono || replyTo;
 
       await supabaseAdmin
@@ -206,9 +265,15 @@ export async function processIncomingMessage(payload: {
         })
         .in("id", ids);
 
+      const contactPhone = (vendedor.telefono_contacto || vendedor.telefono_bot || "").replace(/\D/g, "");
+      const directVendorLink = contactPhone ? `https://wa.me/${contactPhone}` : "";
+
       await sendBotMessage(
         clienteDestino,
-        `❌ Tu reserva de números no pudo ser confirmada y los números fueron liberados nuevamente.`
+        `❌ No pudimos confirmar tu transferencia para el número *${numerosRechazados}* y fue liberado.\n\n` +
+        (directVendorLink
+          ? `Si ya realizaste el pago o tienes dudas, escribe directamente al vendedor aquí: ${directVendorLink}`
+          : `Si ya realizaste el pago o tienes dudas, comunícate con el vendedor.`)
       );
       return;
     }
@@ -234,7 +299,7 @@ export async function processIncomingMessage(payload: {
       const nums = reservas.map((r) => r.numero).join(", ");
       await sendBotMessage(
         replyTo,
-        `📸 *¡Comprobante recibido!*\n\nEstamos verificando tu pago para los números: *${nums}*.\nEn unos instantes recibirás tu ticket de confirmación oficial. ⏳`
+        `📸 ¡Comprobante recibido!\nVerificando tu pago para los números: *${nums}*.\nEn unos instantes recibirás tu ticket oficial. ⏳`
       );
       return;
     }
@@ -266,10 +331,22 @@ export async function processIncomingMessage(payload: {
       return;
     } else {
       const ocupados = (resultadoReserva?.ocupados || []).join(", ");
-      await sendBotMessage(
-        replyTo,
-        `⚠️ Lo sentimos, el/los número(s) *${ocupados}* ya fueron reservados o comprados por otra persona.\n\nPor favor elige otro(s) número(s). Escribe *NUMEROS* para ver los que quedan libres.`
-      );
+      const { data: disponiblesData } = await supabaseAdmin
+        .from("numeros")
+        .select("numero")
+        .eq("rifa_id", rifa.id)
+        .eq("estado", "available")
+        .order("numero", { ascending: true });
+
+      const disponiblesList = (disponiblesData || []).map((d) => d.numero);
+
+      const mensajeOcupado =
+        `⚠️ El número *${ocupados}* ya fue apartado o comprado por otra persona.\n\n` +
+        `Aquí tienes los números que quedan libres:\n` +
+        `\`\`\`\n${formatAvailableNumbers(disponiblesList)}\n\`\`\`\n\n` +
+        `✍️ Responde con el nuevo número que deseas apartar.`;
+
+      await sendBotMessage(replyTo, mensajeOcupado);
       return;
     }
   }
@@ -278,19 +355,28 @@ export async function processIncomingMessage(payload: {
   // Primero liberamos reservas viejas
   await supabaseAdmin.rpc("liberar_reservas_expiradas");
 
-  // 1. Si el cliente ya tiene números reservados pendientes, recordarle el comprobante en lugar de la tabla entera
+  // 1. Si el cliente ya tiene números reservados pendientes, recordarle el comprobante y el tiempo restante
   const { data: reservasPendientes } = await supabaseAdmin
     .from("numeros")
-    .select("numero")
+    .select("numero, expira_en")
     .eq("rifa_id", rifa.id)
     .eq("cliente_telefono", replyTo)
     .eq("estado", "reserved");
 
   if (reservasPendientes && reservasPendientes.length > 0) {
     const nums = reservasPendientes.map((r) => r.numero).sort().join(", ");
+    let minutosRestantes = 15;
+    const primerExpira = reservasPendientes.find((r) => r.expira_en)?.expira_en;
+    if (primerExpira) {
+      const diffMs = new Date(primerExpira).getTime() - Date.now();
+      minutosRestantes = Math.max(1, Math.ceil(diffMs / 60000));
+    }
+
     await sendBotMessage(
       replyTo,
-      `⏳ Tienes los números *${nums}* apartados.\n\nRecuerda enviar la foto del comprobante de transferencia por Nequi aquí mismo para confirmarte tu ticket oficial. 📸`
+      `⏳ Tienes los números *${nums}* apartados.\n` +
+      `Te quedan *${minutosRestantes} minutos* antes de que se liberen tus números.\n\n` +
+      `📸 Recuerda enviar la foto de tu comprobante de Nequi aquí mismo para confirmarte tu ticket.`
     );
     return;
   }
@@ -310,7 +396,9 @@ export async function processIncomingMessage(payload: {
     const nums = comprados.map((p) => p.numero).sort().join(", ");
     await sendBotMessage(
       replyTo,
-      `🎟️ ¡Tus números confirmados para hoy son: *${nums}*!\nJuegan hoy a las ${rifa.hora_sorteo} con *${rifa.loteria}* (Premio: $${rifa.premio.toLocaleString("es-CO")} COP). 🍀\n\nSi deseas comprar más números, escribe *NUMEROS* para ver los que quedan libres.`
+      `🎟️ ¡Tus números confirmados para hoy son: *${nums}*!\n` +
+      `Juegan hoy a las ${rifa.hora_sorteo} con los 2 últimos dígitos de *${rifa.loteria}* (Premio: $${rifa.premio.toLocaleString("es-CO")} COP). 🍀\n\n` +
+      `Si deseas comprar más números, escribe *NUMEROS* para ver los que quedan libres.`
     );
     return;
   }
@@ -329,7 +417,7 @@ export async function processIncomingMessage(payload: {
   const bienvenida =
     `🎟️ *¡BIENVENIDO A LA RIFA DIARIA!* 🎟️\n\n` +
     `🏆 *Premio:* $${rifa.premio.toLocaleString("es-CO")} COP\n` +
-    `🎲 *Juega con:* ${rifa.loteria} (Hoy a las ${rifa.hora_sorteo})\n` +
+    `🎲 *Juega con los 2 últimos dígitos de:* ${rifa.loteria} (Hoy a las ${rifa.hora_sorteo})\n` +
     `💰 *Valor por número:* $${rifa.precio_numero.toLocaleString("es-CO")} COP\n` +
     `📊 *Disponibles:* ${totalLibres} de 100 números\n\n` +
     `🔢 *NÚMEROS DISPONIBLES:*\n` +
@@ -352,8 +440,8 @@ export async function processReaction(payload: {
   if (!isFromMe) return; // Solo procesar reacciones hechas por el vendedor
 
   const cleanReaction = reaction.trim();
-  const isApproval = cleanReaction === "👍" || cleanReaction === "✅" || cleanReaction === "👌";
-  const isRejection = cleanReaction === "👎" || cleanReaction === "❌";
+  const isApproval = cleanReaction.includes("👍") || cleanReaction.includes("✅") || cleanReaction.includes("👌");
+  const isRejection = cleanReaction.includes("👎") || cleanReaction.includes("❌");
 
   if (!isApproval && !isRejection) return;
 
@@ -412,7 +500,11 @@ export async function processReaction(payload: {
     // Enviar ticket oficial al cliente
     await sendBotMessage(
       replyTo,
-      `🎟️ *¡PAGO CONFIRMADO!*\n\nTus números son: *${numerosConfirmados}*\nJuegan con *${rifa.loteria}* (Sorteo: ${rifa.hora_sorteo}).\n\n🏆 *Premio:* $${rifa.premio.toLocaleString("es-CO")} COP.\n¡Mucha suerte! 🍀`
+      `🎟️ *¡PAGO CONFIRMADO!*\n\n` +
+      `Tus números son: *${numerosConfirmados}*\n` +
+      `Juegan con los 2 últimos dígitos de *${rifa.loteria}* (Sorteo: ${rifa.hora_sorteo}).\n\n` +
+      `🏆 *Premio:* $${rifa.premio.toLocaleString("es-CO")} COP.\n` +
+      `¡Mucha suerte! 🍀`
     );
   } else if (isRejection) {
     // Liberar números
@@ -428,10 +520,16 @@ export async function processReaction(payload: {
       })
       .in("id", ids);
 
+    const contactPhone = (vendedor.telefono_contacto || vendedor.telefono_bot || "").replace(/\D/g, "");
+    const directVendorLink = contactPhone ? `https://wa.me/${contactPhone}` : "";
+
     // Notificar al cliente
     await sendBotMessage(
       replyTo,
-      `❌ Tu reserva para los números *${numerosConfirmados}* no pudo ser confirmada y los números fueron liberados nuevamente.`
+      `❌ No pudimos confirmar tu transferencia para el número *${numerosConfirmados}* y fue liberado.\n\n` +
+      (directVendorLink
+        ? `Si ya realizaste el pago o tienes dudas, escribe directamente al vendedor aquí: ${directVendorLink}`
+        : `Si ya realizaste el pago o tienes dudas, comunícate con el vendedor.`)
     );
   }
 }
