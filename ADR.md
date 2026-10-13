@@ -101,3 +101,49 @@ Durante la verificación en Meta Cloud API, los sistemas de seguridad de Meta bl
 * **Cero burocracia:** Sin necesidad de verificar negocio en Meta, sin necesidad de comprar dominios ni presentar registros fiscales.
 * **Costo $0 inicial:** Se aprovecha el crédito inicial de prueba de Railway y el hosting gratuito de Vercel/Supabase.
 * **Coexistencia nativa:** El vendedor mantiene su WhatsApp en el celular mientras el bot atiende como dispositivo vinculado.
+
+---
+
+## ADR 003: Manejo Asíncrono en Vercel Serverless y Soporte Universal para WhatsApp LIDs
+
+* **Fecha:** 13 de Octubre de 2026
+* **Estado:** Aceptado
+
+---
+
+### 1. Contexto
+
+Durante las pruebas iniciales de interacción extremo a extremo entre clientes de WhatsApp y el bot:
+1. Las peticiones enviadas por el Gateway de Railway a Vercel respondían `200 OK` en 10ms, pero la lógica de negocio (`processIncomingMessage`) no se ejecutaba ni respondía en WhatsApp.
+2. Al enviar mensajes desde clientes móviles de WhatsApp contemporáneos, los remitentes no utilizaban el número de teléfono estándar (`@s.whatsapp.net`), sino identificadores de privacidad **LID (Linked IDs)** asignados por Meta (`@lid`).
+3. El Gateway forzaba la normalización a `@s.whatsapp.net`, causando que los mensajes dirigidos a LIDs se enviaran a destinos inválidos y fueran descartados por los servidores de WhatsApp.
+
+---
+
+### 2. Decisiones
+
+#### 2.1 Await obligatorio en Vercel Route Handlers
+* Las funciones Serverless en Vercel (AWS Lambda) congelan o terminan el proceso de ejecución en cuanto se retorna la respuesta HTTP.
+* Se reescribió `app/api/webhooks/whatsapp/route.ts` para que la llamada a `processIncomingMessage` sea síncronamente esperada mediante `await`:
+  * El ciclo de vida de la función se mantiene activo mientras se consulta Supabase y se despacha la respuesta a través del micro-servicio de Railway (~1-3 segundos).
+
+#### 2.2 Preservación de JIDs Nativos (Soporte Dual `@lid` y `@s.whatsapp.net`)
+* El Gateway de Baileys (`bot-gateway/index.js`) y el motor conversacional (`lib/bot-engine.ts`) ahora preservan el JID nativo del remitente (`remoteJid`), reconociendo tanto `@s.whatsapp.net` como `@lid`.
+* Al enviar mensajes salientes (`/send`), si el destinatario incluye `@lid` o `@s.whatsapp.net`, se despacha directamente a ese socket sin alterar el dominio. Si es un número sin sufijo, se normaliza a `@s.whatsapp.net`.
+* En la base de datos, las reservas se asocian al JID nativo del cliente (`replyTo`), garantizando que las notificaciones de confirmación de pago (`#aprobar`) lleguen al chat correspondiente sin importar el tipo de identificador.
+
+#### 2.3 Extracción de Contenido de Mensajes Temporales
+* Se implementó una función desglosadora recursiva (`extractMessageContent`) que desempaqueta mensajes independientemente de si están contenidos en `ephemeralMessage` (mensajes temporales), `viewOnceMessage` o mensajes directos estándar.
+
+#### 2.4 Observabilidad y Trazabilidad en Tiempo Real
+* Se agregaron registros estructurados en la consola del Gateway para monitorear cada mensaje entrante, el reenvío al webhook de Vercel y el estatus de entrega en WhatsApp.
+
+---
+
+### 3. Consecuencias
+
+#### Positivas:
+* **Fiabilidad absoluta:** Eliminación total de caídas silenciosas por congelamiento de contenedores Serverless.
+* **Compatibilidad 100% con clientes modernos:** Cobertura de chats privados con identificadores LID y chats tradicionales con números de teléfono.
+* **Trazabilidad completa:** Visibilidad inmediata de cada interacción en los logs de producción de Railway.
+
