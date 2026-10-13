@@ -16,3 +16,6 @@ next-env.d.ts
 .env.local
 .env.development
 .env.production
+
+# llaves y credenciales locales
+DATA API PROJECT/
