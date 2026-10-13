@@ -60,3 +60,44 @@ Se requiere migrar a un modelo de negocio de rifas diarias automatizadas en Colo
 #### Mitigaciones requeridas:
 * Monitoreo de límites de números en Meta (inicia con 2 números hasta completar verificación de negocio para ampliar hasta 20).
 * Adherencia a buenas prácticas operativas de mensajería para mitigar riesgos de bloqueos automáticos en Meta.
+
+---
+
+## ADR 002: Transición de Meta Cloud API a Baileys en Railway (Modelo Gateway)
+
+* **Fecha:** 13 de Octubre de 2026
+* **Estado:** Aceptado
+
+---
+
+### 1. Contexto
+
+Durante la verificación en Meta Cloud API, los sistemas de seguridad de Meta bloquearon la cuenta comercial (Error 131031: `Business Account locked`), exigiendo verificación formal de negocio con documentos legales de empresa y dominio web corporativo de nivel superior (rechazando subdominios `.vercel.app`). Adicionalmente, las políticas de Meta prohíben estrictamente rifas sin licencia estatal de juegos (Coljuegos).
+
+---
+
+### 2. Decisiones
+
+#### 2.1 Adopción de Baileys sobre WhatsApp Web / Multi-Device
+* Se descarta Meta Cloud API para evitar fricciones de verificación corporativa y bloqueos definitivos por políticas de juegos de azar.
+* Se adopta **Baileys** (vía conexión por código QR / Dispositivos vinculados) para conectar las SIMs físicas de los vendedores.
+
+#### 2.2 Despliegue en Railway (Modelo Gateway)
+* Se implementa un micro-servicio liviano de Baileys desplegado en **Railway** (consumo < 100MB RAM) para mantener la conexión TCP/WebSocket activa 24/7 sin costo inicial.
+* **Separación de responsabilidades (Gateway):**
+  * **Railway (Baileys):** Solo maneja el socket de WhatsApp. Al recibir un mensaje, lo reenvía vía HTTP webhook a Next.js en Vercel. Expone un endpoint `/send` para enviar mensajes.
+  * **Vercel (Next.js):** Contiene 100% de la lógica de negocio (rifas, reservas de 15 min, aprobación de pagos, estados). Se despliega de forma instantánea sin reiniciar el socket de Railway.
+
+#### 2.3 Mitigación de Baneos
+* Tráfico estrictamente **inbound** (el cliente inicia la conversación; el bot nunca hace spam masivo).
+* Volumen bajo controlado (máximo 100 números diarios por vendedor).
+* Simulación de presencia (estado "escribiendo...") antes de responder.
+
+---
+
+### 3. Consecuencias
+
+#### Positivas:
+* **Cero burocracia:** Sin necesidad de verificar negocio en Meta, sin necesidad de comprar dominios ni presentar registros fiscales.
+* **Costo $0 inicial:** Se aprovecha el crédito inicial de prueba de Railway y el hosting gratuito de Vercel/Supabase.
+* **Coexistencia nativa:** El vendedor mantiene su WhatsApp en el celular mientras el bot atiende como dispositivo vinculado.
