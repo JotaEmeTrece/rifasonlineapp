@@ -127,65 +127,72 @@ export async function processIncomingMessage(payload: {
   if (isFromMe) {
     const lower = text.toLowerCase().trim();
 
-    // Comando #aprobar [numero o telefono]
-    if (lower.startsWith("#aprobar")) {
-      const target = lower.replace("#aprobar", "").trim();
-      const numFormatted = target.padStart(2, "0");
+    // Comando #aprobar o #aprobado
+    if (lower.startsWith("#aprobar") || lower.startsWith("#aprobado")) {
+      const numbersInText = parseRequestedNumbers(text);
 
-      // Buscar número reservado
-      const { data: numData } = await supabaseAdmin
+      let query = supabaseAdmin
         .from("numeros")
         .select("*")
         .eq("rifa_id", rifa.id)
-        .or(`numero.eq.${numFormatted},cliente_telefono.eq.${target}`)
         .eq("estado", "reserved");
 
+      if (numbersInText.length > 0) {
+        query = query.in("numero", numbersInText);
+      } else {
+        // Si no especificó números, aprueba todas las reservas de este chat
+        query = query.eq("cliente_telefono", replyTo);
+      }
+
+      const { data: numData } = await query;
+
       if (!numData || numData.length === 0) {
-        await sendBotMessage(cleanFrom, `⚠️ No se encontró reserva pendiente para: "${target}".`);
+        await sendBotMessage(replyTo, `⚠️ No se encontraron reservas pendientes para aprobar.`);
         return;
       }
 
-      // Confirmar pago
       const ids = numData.map((n) => n.id);
-      const numerosConfirmados = numData.map((n) => n.numero).join(", ");
-      const clienteTel = numData[0].cliente_telefono;
+      const numerosConfirmados = numData.map((n) => n.numero).sort().join(", ");
+      const clienteDestino = numData[0].cliente_telefono || replyTo;
 
       await supabaseAdmin
         .from("numeros")
         .update({ estado: "paid", pagado_en: new Date().toISOString(), expira_en: null })
         .in("id", ids);
 
-      // Notificar al cliente
-      if (clienteTel) {
-        await sendBotMessage(
-          clienteTel,
-          `🎟️ *¡PAGO CONFIRMADO!*\n\nTus números son: *${numerosConfirmados}*\nJuegan con *${rifa.loteria}* (Sorteo: ${rifa.hora_sorteo}).\n\n🏆 *Premio:* $${rifa.premio.toLocaleString("es-CO")} COP.\n¡Mucha suerte! 🍀`
-        );
-      }
-
-      await sendBotMessage(cleanFrom, `✅ Pago confirmado para los números: ${numerosConfirmados}.`);
+      // Notificar al cliente con su ticket oficial
+      await sendBotMessage(
+        clienteDestino,
+        `🎟️ *¡PAGO CONFIRMADO!*\n\nTus números son: *${numerosConfirmados}*\nJuegan con *${rifa.loteria}* (Sorteo: ${rifa.hora_sorteo}).\n\n🏆 *Premio:* $${rifa.premio.toLocaleString("es-CO")} COP.\n¡Mucha suerte! 🍀`
+      );
       return;
     }
 
-    // Comando #rechazar [numero o telefono]
-    if (lower.startsWith("#rechazar")) {
-      const target = lower.replace("#rechazar", "").trim();
-      const numFormatted = target.padStart(2, "0");
+    // Comando #rechazar o #rechazado
+    if (lower.startsWith("#rechazar") || lower.startsWith("#rechazado")) {
+      const numbersInText = parseRequestedNumbers(text);
 
-      const { data: numData } = await supabaseAdmin
+      let query = supabaseAdmin
         .from("numeros")
         .select("*")
         .eq("rifa_id", rifa.id)
-        .or(`numero.eq.${numFormatted},cliente_telefono.eq.${target}`)
         .eq("estado", "reserved");
 
+      if (numbersInText.length > 0) {
+        query = query.in("numero", numbersInText);
+      } else {
+        query = query.eq("cliente_telefono", replyTo);
+      }
+
+      const { data: numData } = await query;
+
       if (!numData || numData.length === 0) {
-        await sendBotMessage(cleanFrom, `⚠️ No se encontró reserva para: "${target}".`);
+        await sendBotMessage(replyTo, `⚠️ No se encontraron reservas pendientes para rechazar.`);
         return;
       }
 
       const ids = numData.map((n) => n.id);
-      const clienteTel = numData[0].cliente_telefono;
+      const clienteDestino = numData[0].cliente_telefono || replyTo;
 
       await supabaseAdmin
         .from("numeros")
@@ -199,14 +206,10 @@ export async function processIncomingMessage(payload: {
         })
         .in("id", ids);
 
-      if (clienteTel) {
-        await sendBotMessage(
-          clienteTel,
-          `❌ Tu reserva de números no pudo ser confirmada y los números fueron liberados nuevamente.`
-        );
-      }
-
-      await sendBotMessage(cleanFrom, `↩️ Números liberados correctamente.`);
+      await sendBotMessage(
+        clienteDestino,
+        `❌ Tu reserva de números no pudo ser confirmada y los números fueron liberados nuevamente.`
+      );
       return;
     }
 
@@ -271,10 +274,48 @@ export async function processIncomingMessage(payload: {
     }
   }
 
-  // C. Menú principal / Consulta de números disponibles
+  // C. Menú principal / Estado del cliente
   // Primero liberamos reservas viejas
   await supabaseAdmin.rpc("liberar_reservas_expiradas");
 
+  // 1. Si el cliente ya tiene números reservados pendientes, recordarle el comprobante en lugar de la tabla entera
+  const { data: reservasPendientes } = await supabaseAdmin
+    .from("numeros")
+    .select("numero")
+    .eq("rifa_id", rifa.id)
+    .eq("cliente_telefono", replyTo)
+    .eq("estado", "reserved");
+
+  if (reservasPendientes && reservasPendientes.length > 0) {
+    const nums = reservasPendientes.map((r) => r.numero).sort().join(", ");
+    await sendBotMessage(
+      replyTo,
+      `⏳ Tienes los números *${nums}* apartados.\n\nRecuerda enviar la foto del comprobante de transferencia por Nequi aquí mismo para confirmarte tu ticket oficial. 📸`
+    );
+    return;
+  }
+
+  // 2. Si el cliente ya tiene números pagados hoy, mostrarle sus números en vez de la tabla completa
+  const { data: comprados } = await supabaseAdmin
+    .from("numeros")
+    .select("numero")
+    .eq("rifa_id", rifa.id)
+    .eq("cliente_telefono", replyTo)
+    .eq("estado", "paid");
+
+  const lowerText = text.toLowerCase().trim();
+  const pideMenu = lowerText.includes("numero") || lowerText.includes("número") || lowerText.includes("disponible") || lowerText.includes("menu") || lowerText.includes("menú") || lowerText.includes("hola");
+
+  if (comprados && comprados.length > 0 && !pideMenu) {
+    const nums = comprados.map((p) => p.numero).sort().join(", ");
+    await sendBotMessage(
+      replyTo,
+      `🎟️ ¡Tus números confirmados para hoy son: *${nums}*!\nJuegan hoy a las ${rifa.hora_sorteo} con *${rifa.loteria}* (Premio: $${rifa.premio.toLocaleString("es-CO")} COP). 🍀\n\nSi deseas comprar más números, escribe *NUMEROS* para ver los que quedan libres.`
+    );
+    return;
+  }
+
+  // 3. Menú general y lista de disponibles
   const { data: disponiblesData } = await supabaseAdmin
     .from("numeros")
     .select("numero")
@@ -296,4 +337,101 @@ export async function processIncomingMessage(payload: {
     `✍️ *¿Cómo jugar?*\nSimplemente responde con los números que deseas (ejemplo: *07, 47*) y te daremos los datos de Nequi.`;
 
   await sendBotMessage(replyTo, bienvenida);
+}
+
+/**
+ * Procesa reacciones de emoji del vendedor (👍 para aprobar, 👎 para rechazar)
+ */
+export async function processReaction(payload: {
+  botNumber: string;
+  from: string;
+  isFromMe: boolean;
+  reaction: string;
+}) {
+  const { botNumber, from, isFromMe, reaction } = payload;
+  if (!isFromMe) return; // Solo procesar reacciones hechas por el vendedor
+
+  const cleanReaction = reaction.trim();
+  const isApproval = cleanReaction === "👍" || cleanReaction === "✅" || cleanReaction === "👌";
+  const isRejection = cleanReaction === "👎" || cleanReaction === "❌";
+
+  if (!isApproval && !isRejection) return;
+
+  const replyTo = from.trim();
+
+  // 1. Identificar al vendedor
+  let { data: vendedor } = await supabaseAdmin
+    .from("vendedores")
+    .select("*")
+    .eq("telefono_bot", botNumber)
+    .single();
+
+  if (!vendedor) {
+    const { data: vList } = await supabaseAdmin
+      .from("vendedores")
+      .select("*")
+      .eq("activo", true)
+      .limit(1);
+    vendedor = vList?.[0] || null;
+  }
+
+  if (!vendedor) return;
+
+  // 2. Obtener la rifa activa
+  const { data: rifa } = await supabaseAdmin
+    .from("rifas")
+    .select("*")
+    .eq("vendedor_id", vendedor.id)
+    .eq("estado", "activa")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .single();
+
+  if (!rifa) return;
+
+  // 3. Buscar reservas pendientes para este cliente/chat
+  const { data: numData } = await supabaseAdmin
+    .from("numeros")
+    .select("*")
+    .eq("rifa_id", rifa.id)
+    .eq("cliente_telefono", replyTo)
+    .eq("estado", "reserved");
+
+  if (!numData || numData.length === 0) return;
+
+  const ids = numData.map((n) => n.id);
+  const numerosConfirmados = numData.map((n) => n.numero).sort().join(", ");
+
+  if (isApproval) {
+    // Confirmar pago
+    await supabaseAdmin
+      .from("numeros")
+      .update({ estado: "paid", pagado_en: new Date().toISOString(), expira_en: null })
+      .in("id", ids);
+
+    // Enviar ticket oficial al cliente
+    await sendBotMessage(
+      replyTo,
+      `🎟️ *¡PAGO CONFIRMADO!*\n\nTus números son: *${numerosConfirmados}*\nJuegan con *${rifa.loteria}* (Sorteo: ${rifa.hora_sorteo}).\n\n🏆 *Premio:* $${rifa.premio.toLocaleString("es-CO")} COP.\n¡Mucha suerte! 🍀`
+    );
+  } else if (isRejection) {
+    // Liberar números
+    await supabaseAdmin
+      .from("numeros")
+      .update({
+        estado: "available",
+        cliente_telefono: null,
+        cliente_nombre: null,
+        reservado_en: null,
+        expira_en: null,
+        comprobante_url: null,
+      })
+      .in("id", ids);
+
+    // Notificar al cliente
+    await sendBotMessage(
+      replyTo,
+      `❌ Tu reserva para los números *${numerosConfirmados}* no pudo ser confirmada y los números fueron liberados nuevamente.`
+    );
+  }
 }

@@ -99,14 +99,47 @@ function extractMessageContent(rawMessage) {
       if (!msg.message) continue;
 
       const remoteJid = msg.key.remoteJid || '';
-      // Ignorar difusiones de estado o grupos
-      if (remoteJid === 'status@broadcast' || remoteJid.includes('@g.us')) continue;
+      // Ignorar difusiones de estado, grupos y canales/newsletters
+      if (remoteJid === 'status@broadcast' || remoteJid.includes('@g.us') || remoteJid.includes('@newsletter')) continue;
 
       // Identificador de destino exacto en WhatsApp (conserva @lid o @s.whatsapp.net)
       const isLid = remoteJid.endsWith('@lid');
       const cleanId = remoteJid.split('@')[0].split(':')[0];
       const targetJid = isLid ? `${cleanId}@lid` : `${cleanId}@s.whatsapp.net`;
       const isFromMe = msg.key.fromMe || false;
+
+      // Manejar reacciones de emoji (👍 para aprobar, 👎 para rechazar)
+      if (msg.message.reactionMessage) {
+        const reactionEmoji = msg.message.reactionMessage.text || '';
+        console.log(`[BOT_GATEWAY] 🌟 Reacción detectada en ${targetJid} (fromMe: ${isFromMe}): "${reactionEmoji}"`);
+        if (WEBHOOK_URL && isFromMe) {
+          try {
+            const res = await axios.post(
+              WEBHOOK_URL,
+              {
+                event: 'reaction',
+                botNumber: botPhoneNumber,
+                from: targetJid,
+                isFromMe,
+                reaction: reactionEmoji,
+                targetMessageId: msg.message.reactionMessage.key?.id,
+                timestamp: msg.messageTimestamp
+              },
+              {
+                headers: {
+                  'x-bot-api-key': BOT_API_KEY,
+                  'Content-Type': 'application/json'
+                },
+                timeout: 12000
+              }
+            );
+            console.log(`[BOT_GATEWAY] ✅ Reacción procesada por Vercel (${res.status}) para ${targetJid}`);
+          } catch (err) {
+            console.error(`[REACTION_FORWARD_ERROR]:`, err.message, err.response?.data || '');
+          }
+        }
+        continue;
+      }
 
       const { text, hasImage } = extractMessageContent(msg.message);
       const messageId = msg.key.id;

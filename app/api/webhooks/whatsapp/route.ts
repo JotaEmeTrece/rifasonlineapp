@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { processIncomingMessage } from "@/lib/bot-engine";
+import { processIncomingMessage, processReaction } from "@/lib/bot-engine";
 
 export const runtime = "nodejs";
 
@@ -33,6 +33,14 @@ export async function POST(req: NextRequest) {
         isFromMe: !!payload.isFromMe,
         text: payload.text || "",
         hasImage: !!payload.hasImage,
+      });
+    } else if (payload.event === "reaction") {
+      // Procesar reacción de emoji del vendedor
+      await processReaction({
+        botNumber: payload.botNumber || "",
+        from: payload.from || "",
+        isFromMe: !!payload.isFromMe,
+        reaction: payload.reaction || "",
       });
     }
 
