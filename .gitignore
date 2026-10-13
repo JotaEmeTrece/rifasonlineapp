@@ -17,5 +17,7 @@ next-env.d.ts
 .env.development
 .env.production
 
-# llaves y credenciales locales
-DATA API PROJECT/
+# scripts de desarrollo / operacion
+scripts/
+.env*
+.vercel/

@@ -66,7 +66,9 @@ export async function processIncomingMessage(payload: {
   hasImage: boolean;
 }) {
   const { botNumber, from, isFromMe, text, hasImage } = payload;
-  const cleanFrom = from.replace(/\D/g, "");
+  // replyTo conserva el JID exacto (@lid o @s.whatsapp.net) para responder al chat correcto
+  const replyTo = from.trim();
+  const cleanFrom = from.split('@')[0].split(':')[0].replace(/\D/g, "");
 
   // 1. Identificar al vendedor asociado a este bot
   let { data: vendedor } = await supabaseAdmin
@@ -222,13 +224,13 @@ export async function processIncomingMessage(payload: {
       .from("numeros")
       .select("numero")
       .eq("rifa_id", rifa.id)
-      .eq("cliente_telefono", cleanFrom)
+      .eq("cliente_telefono", replyTo)
       .eq("estado", "reserved");
 
     if (reservas && reservas.length > 0) {
       const nums = reservas.map((r) => r.numero).join(", ");
       await sendBotMessage(
-        cleanFrom,
+        replyTo,
         `📸 *¡Comprobante recibido!*\n\nEstamos verificando tu pago para los números: *${nums}*.\nEn unos instantes recibirás tu ticket de confirmación oficial. ⏳`
       );
       return;
@@ -241,7 +243,7 @@ export async function processIncomingMessage(payload: {
     const { data: resultadoReserva } = await supabaseAdmin.rpc("reservar_numeros_atomica", {
       p_rifa_id: rifa.id,
       p_numeros: requestedNumbers,
-      p_cliente_telefono: cleanFrom,
+      p_cliente_telefono: replyTo,
       p_cliente_nombre: "Cliente WhatsApp",
     });
 
@@ -257,12 +259,12 @@ export async function processIncomingMessage(payload: {
         `• Titular: *${vendedor.nequi_titular}*\n\n` +
         `📸 *Una vez realices la transferencia, envía la foto del comprobante aquí mismo.*`;
 
-      await sendBotMessage(cleanFrom, mensajeConfirmacion);
+      await sendBotMessage(replyTo, mensajeConfirmacion);
       return;
     } else {
       const ocupados = (resultadoReserva?.ocupados || []).join(", ");
       await sendBotMessage(
-        cleanFrom,
+        replyTo,
         `⚠️ Lo sentimos, el/los número(s) *${ocupados}* ya fueron reservados o comprados por otra persona.\n\nPor favor elige otro(s) número(s). Escribe *NUMEROS* para ver los que quedan libres.`
       );
       return;
@@ -293,5 +295,5 @@ export async function processIncomingMessage(payload: {
     `\`\`\`\n${formatAvailableNumbers(disponiblesList)}\n\`\`\`\n\n` +
     `✍️ *¿Cómo jugar?*\nSimplemente responde con los números que deseas (ejemplo: *07, 47*) y te daremos los datos de Nequi.`;
 
-  await sendBotMessage(cleanFrom, bienvenida);
+  await sendBotMessage(replyTo, bienvenida);
 }

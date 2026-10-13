@@ -77,6 +77,20 @@ async function initWhatsApp() {
     }
   });
 
+// Función auxiliar para extraer contenido incluso de mensajes temporales o efímeros
+function extractMessageContent(rawMessage) {
+  if (!rawMessage) return { text: '', hasImage: false };
+  let m = rawMessage;
+  if (m.ephemeralMessage?.message) m = m.ephemeralMessage.message;
+  if (m.viewOnceMessage?.message) m = m.viewOnceMessage.message;
+  if (m.viewOnceMessageV2?.message) m = m.viewOnceMessageV2.message;
+  if (m.documentWithCaptionMessage?.message) m = m.documentWithCaptionMessage.message;
+
+  const text = m.conversation || m.extendedTextMessage?.text || m.imageMessage?.caption || '';
+  const hasImage = !!m.imageMessage;
+  return { text: text.trim(), hasImage };
+}
+
   // Escuchar mensajes entrantes y reenviarlos al webhook de Next.js
   sock.ev.on('messages.upsert', async (m) => {
     if (m.type !== 'notify') return;
@@ -85,36 +99,31 @@ async function initWhatsApp() {
       if (!msg.message) continue;
 
       const remoteJid = msg.key.remoteJid || '';
-      // Ignorar difusiones de estado o grupos (a menos que se quiera soporte a grupos)
+      // Ignorar difusiones de estado o grupos
       if (remoteJid === 'status@broadcast' || remoteJid.includes('@g.us')) continue;
 
-      const senderNumber = remoteJid.replace('@s.whatsapp.net', '').replace('@c.us', '');
+      // Identificador de destino exacto en WhatsApp (conserva @lid o @s.whatsapp.net)
+      const isLid = remoteJid.endsWith('@lid');
+      const cleanId = remoteJid.split('@')[0].split(':')[0];
+      const targetJid = isLid ? `${cleanId}@lid` : `${cleanId}@s.whatsapp.net`;
       const isFromMe = msg.key.fromMe || false;
 
-      // Extraer texto del mensaje
-      let text = '';
-      if (msg.message.conversation) {
-        text = msg.message.conversation;
-      } else if (msg.message.extendedTextMessage?.text) {
-        text = msg.message.extendedTextMessage.text;
-      } else if (msg.message.imageMessage?.caption) {
-        text = msg.message.imageMessage.caption;
-      }
-
-      const hasImage = !!msg.message.imageMessage;
+      const { text, hasImage } = extractMessageContent(msg.message);
       const messageId = msg.key.id;
+
+      console.log(`[BOT_GATEWAY] 📩 Mensaje recibido de ${targetJid} (fromMe: ${isFromMe}): "${text}" (hasImage: ${hasImage})`);
 
       // Disparar evento a Next.js en Vercel
       if (WEBHOOK_URL) {
         try {
-          await axios.post(
+          const res = await axios.post(
             WEBHOOK_URL,
             {
               event: 'message',
               botNumber: botPhoneNumber,
-              from: senderNumber,
+              from: targetJid,
               isFromMe,
-              text: text.trim(),
+              text,
               hasImage,
               messageId,
               timestamp: msg.messageTimestamp
@@ -124,11 +133,12 @@ async function initWhatsApp() {
                 'x-bot-api-key': BOT_API_KEY,
                 'Content-Type': 'application/json'
               },
-              timeout: 8000
+              timeout: 12000
             }
           );
+          console.log(`[BOT_GATEWAY] ✅ Webhook Vercel procesado exitosamente (${res.status}) para ${targetJid}`);
         } catch (err) {
-          console.error('[WEBHOOK_FORWARD_ERROR]:', err.message);
+          console.error(`[WEBHOOK_FORWARD_ERROR]:`, err.message, err.response?.data || '');
         }
       }
     }
@@ -238,8 +248,14 @@ app.post('/send', async (req, res) => {
   }
 
   try {
-    const cleanNumber = to.toString().replace(/\D/g, '');
-    const jid = `${cleanNumber}@s.whatsapp.net`;
+    const rawTo = to.toString().trim();
+    let jid = rawTo;
+    if (!jid.includes('@')) {
+      const cleanNumber = jid.replace(/\D/g, '');
+      jid = `${cleanNumber}@s.whatsapp.net`;
+    }
+
+    console.log(`[BOT_GATEWAY] 📤 Enviando mensaje a ${jid}...`);
 
     // Simular presencia de escritura durante 1 segundo para emular humano
     await sock.sendPresenceUpdate('composing', jid);
@@ -249,6 +265,7 @@ app.post('/send', async (req, res) => {
     // Enviar el mensaje de texto
     const sent = await sock.sendMessage(jid, { text });
 
+    console.log(`[BOT_GATEWAY] ✅ Mensaje entregado exitosamente a ${jid} (ID: ${sent.key.id})`);
     return res.json({ success: true, messageId: sent.key.id });
   } catch (err) {
     console.error('[SEND_MESSAGE_ERROR]:', err);

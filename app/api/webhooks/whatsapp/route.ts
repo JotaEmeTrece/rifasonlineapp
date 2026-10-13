@@ -26,15 +26,13 @@ export async function POST(req: NextRequest) {
     const payload = await req.json();
 
     if (payload.event === "message") {
-      // Procesar el mensaje de forma asíncrona en segundo plano
-      processIncomingMessage({
+      // Esperar a que el motor complete consultas y envío antes de responder a Vercel
+      await processIncomingMessage({
         botNumber: payload.botNumber || "",
         from: payload.from || "",
         isFromMe: !!payload.isFromMe,
         text: payload.text || "",
         hasImage: !!payload.hasImage,
-      }).catch((err) => {
-        console.error("[WEBHOOK_PROCESS_ERROR]:", err);
       });
     }
 
